@@ -378,6 +378,9 @@ function scanAllSessions(): SessionInfo[] {
         let turnCount = 0;
         let toolCallCount = 0;
         let totalTokens = 0;
+        let doneToolCount = 0;
+        let abortedTurnCount = 0;
+        let compactedTurnCount = 0;
         const seenTurns = new Set<string>();
 
         for (const line of lines) {
@@ -420,6 +423,7 @@ function scanAllSessions(): SessionInfo[] {
           model: meta?.model_provider || "custom",
           cwd: meta?.cwd || "",
           anomalies,
+          source: "codex",
           wastedTokens: 0,
           toolSuccessRate: toolCallCount > 0 ? Math.round((doneToolCount / toolCallCount) * 100) : 100,
           efficiencyScore: 50,
