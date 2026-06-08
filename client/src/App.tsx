@@ -6,7 +6,7 @@ import TurnSidebar from "./components/TurnSidebar";
 import TurnDetail from "./components/TurnDetail";
 import { lazy, Suspense } from "react";
 const ShareCard = lazy(() => import("./components/ShareCard"));
-import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2, DollarSign, Download, Bell } from "lucide-react";
+import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2, DollarSign, Download, Bell, UserCircle, CheckCircle, ExternalLink, Settings } from "lucide-react";
 
 const fmt = (n: number) => {
   if (!n && n !== 0) return "0";
