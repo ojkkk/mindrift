@@ -1,0 +1,17 @@
+{
+  "name": "mindrift-server",
+  "version": "1.0.0",
+  "description": "Mindrift — zero-instrumentation Codex AI agent observability server",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  }
+}

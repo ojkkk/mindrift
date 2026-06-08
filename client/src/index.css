@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --bg-deep: #09090d;
+  --bg-surface: #111118;
+  --bg-card: rgba(255,255,255,0.03);
+  --bg-hover: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.14);
+  --text-primary: #e8e8ed;
+  --text-secondary: #a0a0b0;
+  --text-muted: #686878;
+  --text-dim: #484858;
+  --accent-cyan: #00d4ff;
+  --accent-purple: #b094f8;
+  --accent-amber: #f5b642;
+  --accent-green: #2ee89b;
+  --accent-red: #ff5e5e;
+  --header-bg: rgba(9,9,13,0.97);
+  --glass-bg: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  --code-bg: rgba(0,0,0,0.3);
+  --badge-bg: rgba(255,255,255,0.05);
+  --hover-bg: rgba(255,255,255,0.04);
+  --card-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  --glow-cyan: 0 0 20px rgba(0,212,255,0.08);
+  --glow-purple: 0 0 20px rgba(176,148,248,0.06);
+}
+
+.light {
+  --bg-deep: #f5f0e8;
+  --bg-surface: #fefbf6;
+  --bg-card: rgba(0,0,0,0.03);
+  --bg-hover: rgba(0,0,0,0.06);
+  --border: rgba(0,0,0,0.10);
+  --border-strong: rgba(0,0,0,0.16);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --accent-cyan: #0891b2;
+  --accent-purple: #7c3aed;
+  --accent-amber: #b45309;
+  --accent-green: #059669;
+  --accent-red: #dc2626;
+  --header-bg: rgba(250,247,240,0.97);
+  --glass-bg: linear-gradient(135deg, rgba(254,251,246,0.97) 0%, rgba(250,245,235,0.95) 100%);
+  --code-bg: rgba(0,0,0,0.04);
+  --badge-bg: rgba(0,0,0,0.04);
+  --hover-bg: rgba(0,0,0,0.02);
+  --card-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --glow-cyan: none;
+  --glow-purple: none;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(24px);
+  border-radius: 12px;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fade-in 0.35s ease-out both; }
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
