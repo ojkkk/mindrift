@@ -1,10 +1,22 @@
-import { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { AlertTriangle, Zap, Wrench, Clock, TrendingUp } from "lucide-react";
 import type { SessionInfo } from "../../../shared/types";
 
 const fmt = (n: number) => { if (!n && n !== 0) return "0"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; return String(Math.round(n)); };
 
 export default function AnomalyInsights({ sessions, stats }: { sessions: SessionInfo[]; stats?: any }) {
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  
+  const toggleCompare = (id: string) => {
+    setCompareIds((prev: string[]) => {
+      if (prev.includes(id)) return prev.filter((x: string) => x !== id);
+      if (prev.length >= 2) return [prev[1], id];
+      return [...prev, id];
+    });
+  };
+  
+  const compareSessions = compareIds.map((id: string) => sessions.find((s: any) => s.id === id)).filter(Boolean);
+  
   const insights = useMemo(() => {
     if (!sessions || sessions.length === 0) return null;
 
@@ -181,6 +193,47 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Session Comparison */}
+      <div>
+        <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Compare Sessions (click 2)</div>
+        <div className="space-y-1 max-h-[120px] overflow-y-auto">
+          {sessions.slice(0, 15).map((s: any) => {
+            const isSelected = compareIds.includes(s.id);
+            return (
+              <button key={s.id} onClick={() => toggleCompare(s.id)}
+                className="w-full flex items-center gap-2 px-2 py-1 rounded text-left text-[9px] transition-colors"
+                style={{
+                  background: isSelected ? "rgba(34,211,238,0.1)" : "var(--bg-card)",
+                  color: isSelected ? "var(--accent-cyan)" : "var(--text-secondary)",
+                }}>
+                <div className="w-3 h-3 rounded border flex items-center justify-center text-[7px]" style={{ borderColor: isSelected ? "var(--accent-cyan)" : "var(--border)" }}>
+                  {isSelected ? "✓" : ""}
+                </div>
+                <span className="truncate flex-1">{s.name?.slice(0, 30) || "Untitled"}</span>
+                <span className="text-[8px] font-mono" style={{color:"var(--text-muted)"}}>{fmt(s.totalTokens)}</span>
+              </button>
+            );
+          })}
+        </div>
+        {compareSessions.length === 2 && (
+          <div className="mt-2 p-2 rounded border" style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
+            <div className="grid grid-cols-3 gap-1 text-[8px]">
+              <span style={{color:"var(--text-muted)"}}>Metric</span>
+              <span className="font-semibold text-center" style={{color:"var(--accent-cyan)"}}>{(compareSessions[0] as any).name?.slice(0,12)}</span>
+              <span className="font-semibold text-center" style={{color:"var(--accent-purple)"}}>{(compareSessions[1] as any).name?.slice(0,12)}</span>
+              
+              {[["Tokens", "totalTokens", fmt], ["Turns", "turnCount", (v:any)=>String(v)], ["Tools", "toolCallCount", (v:any)=>String(v)], ["Category", "category", (v:any)=>v||"-"], ["Efficiency", "efficiencyScore", (v:any)=>v+"%"]].map(([label, key, f]: any) => (
+                <React.Fragment key={key}>
+                  <span style={{color:"var(--text-muted)"}}>{label}</span>
+                  <span className="font-mono text-center" style={{color:"var(--text-secondary)"}}>{f((compareSessions[0] as any)[key])}</span>
+                  <span className="font-mono text-center" style={{color:"var(--text-secondary)"}}>{f((compareSessions[1] as any)[key])}</span>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Top Flagged Sessions */}

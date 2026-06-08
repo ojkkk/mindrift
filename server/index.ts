@@ -9,6 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { scanClaudeSessions, parseClaudeSession } = require("./parsers/claude");
+const { scanCursorSessions, parseCursorSession } = require("./parsers/cursor");
 
 // Load config
 const CONFIG_PATH = path.join(__dirname, "..", "mindrift.config.json");
@@ -460,6 +461,20 @@ function scanAllSessions(): SessionInfo[] {
       );
     }
   } catch { /* Claude not available */ }
+  // Merge Cursor sessions
+  try {
+    const cursor = scanCursorSessions();
+    if (cursor && cursor.length > 0) {
+      for (const cs of cursor) {
+        if (!sessions.some((s: SessionInfo) => s.id === cs.id)) {
+          sessions.push(cs);
+        }
+      }
+      sessions.sort((a: SessionInfo, b: SessionInfo) => 
+        new Date(b.lastModified || b.startedAt).getTime() - new Date(a.lastModified || a.startedAt).getTime()
+      );
+    }
+  } catch { /* Cursor not available */ }
   return sessions;
 }
 
@@ -646,6 +661,25 @@ app.get("/api/status", (_: any, r: any) => r.json({
   currentFile: currentSessionFile,
   uptime: Math.floor(process.uptime()),
 }));
+
+// ===== Export APIs =====
+app.get("/api/export/json", (_: any, r: any) => {
+  const sessions = scanAllSessions();
+  r.setHeader("Content-Disposition", "attachment; filename=mindrift-sessions.json");
+  r.json(sessions);
+});
+
+app.get("/api/export/csv", (_: any, r: any) => {
+  const sessions = scanAllSessions();
+  const header = "id,name,source,model,startedAt,turnCount,totalTokens,toolCallCount,category,efficiencyScore,toolSuccessRate";
+  const rows = sessions.map((s: any) => [
+    s.id, '"' + (s.name || "").replace(/"/g, '""') + '"', s.source || "codex", s.model || "",
+    s.startedAt, s.turnCount, s.totalTokens, s.toolCallCount, s.category || "", s.efficiencyScore || 0, s.toolSuccessRate || 100
+  ].join(","));
+  r.setHeader("Content-Type", "text/csv");
+  r.setHeader("Content-Disposition", "attachment; filename=mindrift-sessions.csv");
+  r.send(header + "\n" + rows.join("\n"));
+});
 
 app.use(express.static(CLIENT_DIST));
 app.get("*", (_req: any, res: any) => {

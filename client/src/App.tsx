@@ -6,7 +6,7 @@ import TurnSidebar from "./components/TurnSidebar";
 import TurnDetail from "./components/TurnDetail";
 import { lazy, Suspense } from "react";
 const ShareCard = lazy(() => import("./components/ShareCard"));
-import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2, DollarSign } from "lucide-react";
+import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2, DollarSign, Download } from "lucide-react";
 
 const fmt = (n: number) => {
   if (!n && n !== 0) return "0";
@@ -165,7 +165,15 @@ const App: React.FC = () => {
 <footer className="shrink-0 flex items-center justify-between px-4 py-1 border-t text-[8px] font-mono relative z-10 backdrop-blur-xl"
         style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "var(--bg-deep)" }}>
         <span>{allSes} sessions · {allTurns} turns · {fmt(sessions.reduce((s, x) => s + (x.totalTokens || 0), 0))} total tokens</span>
-        <span>{connected ? "ws connected" : "ws disconnected"}</span>
+        <div className="flex items-center gap-3">
+          <a href="/api/export/csv" className="flex items-center gap-1 hover:text-cyan-400 transition-colors" style={{color:"var(--text-muted)"}} title="Export CSV">
+            <Download size={9} />CSV
+          </a>
+          <a href="/api/export/json" className="flex items-center gap-1 hover:text-cyan-400 transition-colors" style={{color:"var(--text-muted)"}} title="Export JSON">
+            <Download size={9} />JSON
+          </a>
+          <span>{connected ? "ws connected" : "ws disconnected"}</span>
+        </div>
       </footer>
       {showShare && <Suspense fallback={null}><ShareCard session={currentSession || sessions[0]} turns={turns} stats={stats} onClose={() => setShowShare(false)} /></Suspense>}
     </div>

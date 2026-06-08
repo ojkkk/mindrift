@@ -39,6 +39,12 @@ export default function SessionBar({ sessions, currentSessionId, onSelect, loadi
               </div>
               <div className="flex items-center gap-1 text-[7px]" style={{ color: "var(--text-muted)" }}>
                 <span className="flex items-center gap-0.5"><Calendar size={7} />{fmtDate(s.startedAt)}</span>
+                {s.source && s.source !== "codex" && (
+                  <span className="px-1 py-0.5 rounded text-[6px] font-semibold" style={{
+                    background: s.source === "claude-code" ? "rgba(167,139,250,0.15)" : s.source === "cursor" ? "rgba(34,211,238,0.15)" : "rgba(100,100,255,0.1)",
+                    color: s.source === "claude-code" ? "#a78bfa" : s.source === "cursor" ? "#22d3ee" : "var(--text-muted)",
+                  }}>{s.source === "claude-code" ? "Claude" : s.source === "cursor" ? "Cursor" : s.source}</span>
+                )}
                 <span className="ml-auto">{s.turnCount}t</span>
                 {s.totalTokens > 0 && <span>{fmt(s.totalTokens)}</span>}
                 {s.toolCallCount > 0 && <span style={{color:"var(--text-dim)"}}>{s.toolCallCount} tools</span>}
