@@ -2,6 +2,10 @@
 
 > Monitor every thought, token, and tool call.
 
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/English-EN-blue?style=flat-square" /></a>
+  <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/中文-中文-red?style=flat-square" /></a>
+</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Codex-blue?style=flat-square" />
