@@ -6,7 +6,7 @@ import TurnSidebar from "./components/TurnSidebar";
 import TurnDetail from "./components/TurnDetail";
 import { lazy, Suspense } from "react";
 const ShareCard = lazy(() => import("./components/ShareCard"));
-import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2, DollarSign, Download } from "lucide-react";
+import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2, DollarSign, Download, Bell } from "lucide-react";
 
 const fmt = (n: number) => {
   if (!n && n !== 0) return "0";
@@ -26,7 +26,7 @@ const App: React.FC = () => {
   const {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN, selectedTurn, selectedTurnTools,
-    planSteps, planProgress, stats, activeView, setActiveView, allToolCalls,
+    planSteps, planProgress, stats, activeView, setActiveView, allToolCalls, alerts,
   } = useAgentScope();
 
   const [filteredSessions, setFilteredSessions] = useState<any>(null); const [showWizard, setShowWizard] = useState(false);
@@ -107,6 +107,14 @@ const App: React.FC = () => {
           <Flame size={10} className="text-red-400 shrink-0" />
           <span style={{color:"var(--text-secondary)"}}>{anomalies} sessions flagged</span>
           <span style={{color:"var(--text-muted)"}}>— high tokens, many tools, or context pressure detected</span>
+        </div>
+      )}
+      {/* Alert banner */}
+      {alerts && alerts.length > 0 && (
+        <div className="shrink-0 px-4 py-1 bg-amber-500/[0.06] border-b border-amber-500/15 flex items-center gap-2 text-[9px]">
+          <Bell size={10} className="text-amber-400 shrink-0" />
+          <span style={{color:"var(--text-secondary)"}}>{alerts.length} alert{alerts.length > 1 ? "s" : ""}</span>
+          <span style={{color:"var(--text-muted)"}}>— {alerts[0]}</span>
         </div>
       )}
 

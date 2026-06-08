@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Filter, X, Zap, Wrench, Flame } from "lucide-react";
+import { Search, Filter, X, Zap, Wrench, Flame, Star } from "lucide-react";
 
 export default function SessionFilter({ sessions, onFiltered }) {
   const [query, setQuery] = useState("");
@@ -8,19 +8,22 @@ export default function SessionFilter({ sessions, onFiltered }) {
   const [maxTokens, setMaxTokens] = useState("");
   const [minTools, setMinTools] = useState("");
   const [anomalyOnly, setAnomalyOnly] = useState(false);
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
 
-  const apply = (q, mt, xt, mTool, anom) => {
+  const getBookmarks = () => { try { return JSON.parse(localStorage.getItem("mindrift-bookmarks") || "[]"); } catch { return []; } };
+  const apply = (q, mt, xt, mTool, anom, bm) => {
     let f = [...sessions];
     if (q) { const l = q.toLowerCase(); f = f.filter(s => (s.name||"").toLowerCase().includes(l) || (s.cwd||"").toLowerCase().includes(l) || (s.model||"").toLowerCase().includes(l)); }
     if (mt) f = f.filter(s => (s.totalTokens||0) >= parseInt(mt));
     if (xt) f = f.filter(s => (s.totalTokens||0) <= parseInt(xt));
     if (mTool) f = f.filter(s => (s.toolCallCount||0) >= parseInt(mTool));
     if (anom) f = f.filter(s => s.anomalies && s.anomalies.length > 0);
+    if (bm) { const bks = getBookmarks(); f = f.filter(s => bks.includes(s.id)); }
     onFiltered(f);
   };
-  const handleSearch = (v) => { setQuery(v); apply(v, minTokens, maxTokens, minTools, anomalyOnly); };
-  const clear = () => { setQuery(""); setMinTokens(""); setMaxTokens(""); setMinTools(""); setAnomalyOnly(false); setShowFilters(false); onFiltered(sessions); };
-  const hasFilters = query || minTokens || maxTokens || minTools || anomalyOnly;
+  const handleSearch = (v) => { setQuery(v); apply(v, minTokens, maxTokens, minTools, anomalyOnly, bookmarkedOnly); };
+  const clear = () => { setQuery(""); setMinTokens(""); setMaxTokens(""); setMinTools(""); setAnomalyOnly(false); setBookmarkedOnly(false); setShowFilters(false); onFiltered(sessions); };
+  const hasFilters = query || minTokens || maxTokens || minTools || anomalyOnly || bookmarkedOnly;
 
   return (
     <div className="shrink-0 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-deep)" }}>
@@ -38,18 +41,22 @@ export default function SessionFilter({ sessions, onFiltered }) {
       {showFilters && (
         <div className="flex items-center gap-2 px-2 py-1 border-t text-[8px]" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-1"><Zap size={8} className="text-cyan-500/60" /><span style={{ color: "var(--text-muted)" }}>Tokens:</span>
-            <input type="number" placeholder="Min" value={minTokens} onChange={e => { setMinTokens(e.target.value); apply(query, e.target.value, maxTokens, minTools, anomalyOnly); }}
+            <input type="number" placeholder="Min" value={minTokens} onChange={e => { setMinTokens(e.target.value); apply(query, e.target.value, maxTokens, minTools, anomalyOnly, bookmarkedOnly); }}
               className="w-12 border rounded px-1 py-0.5 text-[8px] outline-none" style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-card)" }} />
-            <input type="number" placeholder="Max" value={maxTokens} onChange={e => { setMaxTokens(e.target.value); apply(query, minTokens, e.target.value, minTools, anomalyOnly); }}
+            <input type="number" placeholder="Max" value={maxTokens} onChange={e => { setMaxTokens(e.target.value); apply(query, minTokens, e.target.value, minTools, anomalyOnly, bookmarkedOnly); }}
               className="w-12 border rounded px-1 py-0.5 text-[8px] outline-none" style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-card)" }} />
           </div>
           <div className="flex items-center gap-1"><Wrench size={8} className="text-purple-500/60" /><span style={{ color: "var(--text-muted)" }}>Tools:</span>
-            <input type="number" placeholder="Min" value={minTools} onChange={e => { setMinTools(e.target.value); apply(query, minTokens, maxTokens, e.target.value, anomalyOnly); }}
+            <input type="number" placeholder="Min" value={minTools} onChange={e => { setMinTools(e.target.value); apply(query, minTokens, maxTokens, e.target.value, anomalyOnly, bookmarkedOnly); }}
               className="w-10 border rounded px-1 py-0.5 text-[8px] outline-none" style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-card)" }} />
           </div>
           <label className="flex items-center gap-0.5 cursor-pointer">
-            <input type="checkbox" checked={anomalyOnly} onChange={e => { setAnomalyOnly(e.target.checked); apply(query, minTokens, maxTokens, minTools, e.target.checked); }} className="accent-red-400" />
+            <input type="checkbox" checked={anomalyOnly} onChange={e => { setAnomalyOnly(e.target.checked); apply(query, minTokens, maxTokens, minTools, e.target.checked, bookmarkedOnly); }} className="accent-red-400" />
             <Flame size={8} className="text-red-400" /><span style={{ color: "var(--text-muted)" }}>Anomalies</span>
+          </label>
+          <label className="flex items-center gap-0.5 cursor-pointer">
+            <input type="checkbox" checked={bookmarkedOnly} onChange={e => { setBookmarkedOnly(e.target.checked); apply(query, minTokens, maxTokens, minTools, anomalyOnly, e.target.checked); }} className="accent-amber-400" />
+            <Star size={8} className="text-amber-400" /><span style={{ color: "var(--text-muted)" }}>Starred</span>
           </label>
         </div>
       )}

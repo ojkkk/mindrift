@@ -1,10 +1,23 @@
 {
   "port": 3344,
   "sources": [
-    { "type": "codex", "path": "" },
-    { "type": "claude-code", "path": "" }
+    {
+      "type": "codex",
+      "path": ""
+    },
+    {
+      "type": "claude-code",
+      "path": ""
+    }
   ],
   "theme": "dark",
   "webhooks": [],
-  "scanIntervalMs": 2000
+  "scanIntervalMs": 2000,
+  "alerts": {
+    "enabled": true,
+    "dailyTokenLimit": 1000000,
+    "singleTurnTokenLimit": 50000,
+    "sessionDurationLimitMinutes": 60,
+    "toolCallLimitPerTurn": 30
+  }
 }

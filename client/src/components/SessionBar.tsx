@@ -1,4 +1,5 @@
-import { Calendar, MessageCircle, Loader2, Clock, AlertTriangle, Flame, Code2, Bot } from "lucide-react";
+import { Calendar, MessageCircle, Loader2, Clock, AlertTriangle, Flame, Code2, Bot, Star } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; if (n < 1000) return String(Math.round(n)); return String(n); };
 function fmtDate(ts) { if (!ts) return ""; const d = new Date(ts); const now = new Date(); const diff = Number(now) - Number(d); if (diff < 60000) return "now"; if (diff < 3600000) return Math.round(diff / 60000) + "m"; if (diff < 86400000) return Math.round(diff / 3600000) + "h"; if (diff < 604800000) return Math.round(diff / 86400000) + "d"; return d.toLocaleDateString("zh-CN", { month: "short", day: "numeric" }); }
@@ -7,6 +8,13 @@ function fmtDur(sec) { if (sec == null) return ""; if (sec < 60) return sec + "s
 const ANOMALY_LABELS = { "high-tokens": "Tokens", "many-tools": "Tools", "long-session": "Long", "context-pressure": "Ctx", "tool-errors": "Errors" };
 
 export default function SessionBar({ sessions, currentSessionId, onSelect, loading }) {
+  const [bookmarked, setBookmarked] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("mindrift-bookmarks") || "[]"); } catch { return []; }
+  });
+  useEffect(() => { localStorage.setItem("mindrift-bookmarks", JSON.stringify(bookmarked)); }, [bookmarked]);
+  const toggleBookmark = (id: string, e: React.MouseEvent) => { e.stopPropagation(); setBookmarked((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]); };
+  const isBookmarked = (id: string) => bookmarked.includes(id);
+
   return (
     <div className="shrink-0 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-deep)" }}>
       <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto" style={{ maxHeight: "64px" }}>
@@ -25,8 +33,11 @@ export default function SessionBar({ sessions, currentSessionId, onSelect, loadi
                 boxShadow: isActive ? "0 0 16px rgba(0,212,255,0.10)" : "none",
                 height: "58px",
               }}>
+              <button onClick={(e) => toggleBookmark(s.id, e)} className="absolute -top-0.5 -right-0.5 p-0.5 rounded hover:bg-white/10 z-10" title="Bookmark session">
+                <Star size={10} style={{color: isBookmarked(s.id) ? "#f59e0b" : "var(--text-dim)", fill: isBookmarked(s.id) ? "#f59e0b" : "none"}} />
+              </button>
               {hasAnomalies && (
-                <div className="absolute -top-1 -right-1" title={s.anomalies.map((a) => ANOMALY_LABELS[a] || a).join(", ")}>
+                <div className="absolute -top-1 -left-1" title={s.anomalies.map((a) => ANOMALY_LABELS[a] || a).join(", ")}>
                   <Flame size={10} style={{color:"var(--accent-red)"}} />
                 </div>
               )}

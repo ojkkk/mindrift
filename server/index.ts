@@ -560,6 +560,42 @@ function computeStats(sessions: SessionInfo[]): Stats {
   };
 }
 
+function checkAlerts(sessions: SessionInfo[]): string[] {
+  const alerts: string[] = [];
+  const ac = appConfig.alerts;
+  if (!ac || !ac.enabled) return alerts;
+  
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  
+  // Check daily token limit
+  let todayTokens = 0;
+  for (const s of sessions) {
+    const ts = new Date(s.startedAt).getTime();
+    const mod = s.lastModified ? new Date(s.lastModified).getTime() : ts;
+    if (mod >= todayStart) todayTokens += s.totalTokens;
+  }
+  if (ac.dailyTokenLimit && todayTokens > ac.dailyTokenLimit) {
+    alerts.push("Daily token limit exceeded: " + Math.round(todayTokens / 1000) + "K / " + Math.round(ac.dailyTokenLimit / 1000) + "K");
+  }
+  
+  // Check active turn token limit
+  const lastTurn = turns[turns.length - 1];
+  if (lastTurn && ac.singleTurnTokenLimit) {
+    const tt = (lastTurn.tokens.in || 0) + (lastTurn.tokens.out || 0) + (lastTurn.tokens.reason || 0);
+    if (tt > ac.singleTurnTokenLimit) {
+      alerts.push("Turn #" + lastTurn.n + " tokens: " + Math.round(tt / 1000) + "K (limit: " + Math.round(ac.singleTurnTokenLimit / 1000) + "K)");
+    }
+  }
+  
+  // Check tool calls in active turn
+  if (lastTurn && ac.toolCallLimitPerTurn && lastTurn.tc > ac.toolCallLimitPerTurn) {
+    alerts.push("Turn #" + lastTurn.n + " tool calls: " + lastTurn.tc + " (limit: " + ac.toolCallLimitPerTurn + ")");
+  }
+  
+  return alerts;
+}
+
 function loadSession(p: string): ParsedSession | null {
   try { return parseSession(fs.readFileSync(p, "utf-8")); } catch { return null; }
 }
@@ -619,13 +655,15 @@ function buildClientTools(): ToolCall[] {
 }
 
 function broadcastFullState() {
+  const sessions = scanAllSessions();
   broadcast("full_state", {
     meta: sessionMeta,
     turns: buildClientTurns(),
     planSteps,
     planProgress: tokenMetrics.planProgress || { completed: 0, total: 0 },
     toolCalls: buildClientTools(),
-    stats: computeStats(scanAllSessions()),
+    stats: computeStats(sessions),
+    alerts: checkAlerts(sessions),
   });
 }
 

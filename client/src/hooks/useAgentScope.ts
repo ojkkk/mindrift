@@ -14,6 +14,7 @@ export function useAgentScope() {
   const [allToolCalls, setAllToolCalls] = useState<ToolCall[]>([]);
   const [stats, setStats] = useState<Stats>({ today: { tokens: 0, sessions: 0 }, month: { tokens: 0, sessions: 0 }, all: { tokens: 0, turns: 0, sessions: 0 }, anomalies: 0 });
   const [activeView, setActiveView] = useState<string>("overview");
+  const [alerts, setAlerts] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   const connect = useCallback(() => {
@@ -55,6 +56,7 @@ export function useAgentScope() {
             const fs = data.payload;
             if (fs.meta) setSessionMeta(fs.meta);
             if (fs.stats) setStats(fs.stats);
+            if (fs.alerts) setAlerts(fs.alerts);
             const newTurns: Turn[] = fs.turns || [];
             setTurns(newTurns);
             setPlanSteps(fs.planSteps || []);
@@ -154,6 +156,28 @@ export function useAgentScope() {
       });
   }, []);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (!turns.length) return;
+      const currentIdx = turns.findIndex((t: Turn) => t.n === selectedTurnN);
+      if (e.key === "ArrowDown" || e.key === "j") {
+        e.preventDefault();
+        const next = currentIdx < turns.length - 1 ? currentIdx + 1 : 0;
+        setSelectedTurnN(turns[next].n);
+      } else if (e.key === "ArrowUp" || e.key === "k") {
+        e.preventDefault();
+        const prev = currentIdx > 0 ? currentIdx - 1 : turns.length - 1;
+        setSelectedTurnN(turns[prev].n);
+      } else if (e.key === "Escape") {
+        if (activeView !== "overview") setActiveView("overview");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [turns, selectedTurnN, activeView, setActiveView]);
+  
   const selectedTurn = turns.find((t: Turn) => t.n === selectedTurnN) || null;
   const selectedTurnTools = selectedTurn ? allToolCalls.filter((tc: ToolCall) => tc.turnN === selectedTurn.n) : [];
 
@@ -161,6 +185,6 @@ export function useAgentScope() {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN,
     selectedTurn, selectedTurnTools, planSteps, planProgress,
-    stats, activeView, setActiveView, allToolCalls,
+    stats, activeView, setActiveView, allToolCalls, alerts,
   };
 }
