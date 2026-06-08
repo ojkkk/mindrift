@@ -6,12 +6,13 @@ import ToolCallTree from "./ToolCallTree";
 import ThinkingAnalysis from "./ThinkingAnalysis";
 import TokenDonut from "./TokenDonut";
 import TurnTokenChart from "./TurnTokenChart";
+import SessionTrend from "./SessionTrend";
 
 const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; if (n < 1000) return String(Math.round(n)); return String(n); };
 const fmtMs = (ms) => { if (!ms) return "\u2014"; if (ms < 1000) return ms + "ms"; return (ms / 1000).toFixed(1) + "s"; };
 const fmtDur = (sec) => { if (sec == null) return ""; if (sec < 60) return sec + "s"; const m = Math.floor(sec / 60); return m + "m " + (sec % 60) + "s"; };
 
-export default function TurnDetail({ turn, planSteps, planProgress, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls }) {
+export default function TurnDetail({ turn, planSteps, planProgress, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls, sessions }) {
   const isDark = document.documentElement.className !== "light";
 
   if (!turn && activeView !== "allturns") {
@@ -370,6 +371,7 @@ function TabBar({ activeView, setActiveView }) {
     { key: "tools", label: "Tools", icon: <Wrench size={10} /> },
     { key: "thinking", label: "Thinking", icon: <Brain size={10} /> },
     { key: "allturns", label: "All Turns", icon: <BarChart3 size={10} /> },
+    { key: "trends", label: "Trends", icon: <TrendingUp size={10} /> },
     { key: "raw", label: "Raw", icon: <FileText size={10} /> },
   ];
   return (

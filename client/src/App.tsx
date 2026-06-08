@@ -110,7 +110,7 @@ const App: React.FC = () => {
           <TurnSidebar turns={turns} selectedTurnN={selectedTurnN} onSelect={setSelectedTurnN} />
         </div>
         <TurnDetail
-          turn={selectedTurn} planSteps={planSteps} planProgress={planProgress} turnTools={selectedTurnTools}
+          turn={selectedTurn} planSteps={planSteps} planProgress={planProgress} turnTools={selectedTurnTools} sessions={sessions}
           activeView={activeView} setActiveView={setActiveView} sessionMeta={sessionMeta}
           turns={turns} selectedTurnN={selectedTurnN} setSelectedTurnN={setSelectedTurnN}
           allToolCalls={allToolCalls}
