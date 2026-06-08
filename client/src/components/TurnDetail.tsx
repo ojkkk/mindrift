@@ -16,7 +16,7 @@ const fmtDur = (sec) => { if (sec == null) return ""; if (sec < 60) return sec +
 export default function TurnDetail({ turn, planSteps, planProgress, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls, sessions, stats }) {
   const isDark = document.documentElement.className !== "light";
 
-  if (!turn && activeView !== "allturns") {
+  if (!turn && activeView !== "allturns" && activeView !== "insights" && activeView !== "trends") {
     return (
       <div className="flex-1 flex items-center justify-center" style={{ color: "var(--text-muted)" }}>
         <div className="text-center"><Brain size={32} className="mx-auto mb-3 opacity-20" /><p className="text-xs">Select a turn from the sidebar</p></div>
@@ -117,8 +117,28 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
         {activeView === "tools" && <ToolCallTree turn={turn} turnTools={turnTools} />}
         {activeView === "thinking" && <ThinkingAnalysis turn={turn} />}
         {activeView === "raw" && <RawLogViewer sessionMeta={sessionMeta} />}
-        {activeView === "insights" && <AnomalyInsights sessions={sessions} stats={stats} />}
-        {activeView === "trends" && <SessionTrend sessions={sessions} />}
+        {activeView === "insights" && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="shrink-0 px-5 py-3" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><AlertTriangle size={14} className="text-amber-400" /><span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Insights & Analysis</span></div>
+                <TabBar activeView={activeView} setActiveView={setActiveView} />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto"><AnomalyInsights sessions={sessions} stats={stats} /></div>
+          </div>
+        )}
+        {activeView === "trends" && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="shrink-0 px-5 py-3" style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><TrendingUp size={14} className="text-purple-400" /><span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Session Trends</span></div>
+                <TabBar activeView={activeView} setActiveView={setActiveView} />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto"><SessionTrend sessions={sessions} /></div>
+          </div>
+        )}
       </Suspense>
     </div>
   </div>

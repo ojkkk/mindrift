@@ -501,7 +501,9 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
 };
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING["custom"];
+  const cfgModel = appConfig.costModel || "custom";
+  const lookupModel = cfgModel !== "custom" ? cfgModel : model;
+  const pricing = MODEL_PRICING[lookupModel] || MODEL_PRICING[model] || MODEL_PRICING["custom"];
   return (inputTokens / 1e6) * pricing.input + (outputTokens / 1e6) * pricing.output;
 }
 
@@ -695,7 +697,18 @@ app.get("/api/sessions/:id/raw", (req: any, res: any) => {
 });
 
 app.get("/api/stats", (_: any, r: any) => { r.json(computeStats(scanAllSessions())); });
-app.get("/api/config", (_: any, r: any) => r.json(appConfig));
+app.get("/api/config", (_: any, r: any) => r.json({ ...appConfig, costModel: appConfig.costModel || "custom" }));
+
+app.post("/api/config", express.json(), (req: any, res: any) => {
+  try {
+    if (req.body.costModel) appConfig.costModel = req.body.costModel;
+    if (req.body.platforms) {
+      appConfig.sources = req.body.platforms.map((p: string) => ({ type: p, path: "" }));
+    }
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(appConfig, null, 2), "utf-8");
+    res.json({ ok: true, config: appConfig });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
 app.get("/api/status", (_: any, r: any) => r.json({
   ok: true,
   turns: turns.length,

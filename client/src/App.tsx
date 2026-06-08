@@ -4,7 +4,6 @@ import SessionFilter from "./components/SessionFilter";
 import SessionBar from "./components/SessionBar";
 import TurnSidebar from "./components/TurnSidebar";
 import TurnDetail from "./components/TurnDetail";
-import { lazy, Suspense } from "react";
 const ShareCard = lazy(() => import("./components/ShareCard"));
 import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2, DollarSign, Download, Bell, UserCircle, CheckCircle, ExternalLink, Settings } from "lucide-react";
 
@@ -22,6 +21,17 @@ const formatCost = (cost: number) => {
   return "$" + Math.round(cost);
 };
 
+const saveConfig = async () => {
+    try {
+      await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ costModel: setupModel, platforms: setupPlatforms }),
+      });
+      setTimeout(() => window.location.reload(), 500);
+    } catch {}
+  };
+
 const App: React.FC = () => {
   const {
     connected, sessions, currentSessionId, loadSession, loading,
@@ -31,6 +41,8 @@ const App: React.FC = () => {
 
   const [filteredSessions, setFilteredSessions] = useState<any>(null); const [showWizard, setShowWizard] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [setupModel, setSetupModel] = useState("custom");
+  const [setupPlatforms, setSetupPlatforms] = useState<string[]>(["codex"]);
   const [theme, setTheme] = useState(() => localStorage.getItem("mindrift-theme") || "dark");
   const displaySessions = filteredSessions || sessions;
 
@@ -89,7 +101,15 @@ const App: React.FC = () => {
             {connected ? "LIVE" : "OFF"}
           </div>
           <button
-            onClick={() => setShowWizard(!showWizard)}
+            onClick={() => {
+            if (!showWizard) {
+              fetch("/api/config").then(r => r.json()).then(c => {
+                setSetupModel(c.costModel || "custom");
+                setSetupPlatforms(c.sources?.map((s:any) => s.type) || ["codex"]);
+              }).catch(() => {});
+            }
+            setShowWizard(!showWizard);
+          }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all duration-200 hover:scale-105 cursor-pointer"
             style={{ borderColor: "var(--border)", background: showWizard ? "var(--bg-hover)" : "var(--bg-card)" }}
             title="Setup & Help"
@@ -132,40 +152,56 @@ const App: React.FC = () => {
           allToolCalls={allToolCalls} stats={stats}
         />
       </div>{showWizard && (
-        <div className="fixed top-10 right-4 w-72 rounded-xl border shadow-2xl z-50 p-4" style={{background:"var(--bg-surface)",borderColor:"var(--border-strong)",boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>
+        <div className="fixed top-10 right-4 w-80 rounded-xl border shadow-2xl z-50 p-4 max-h-[80vh] overflow-y-auto" style={{background:"var(--bg-surface)",borderColor:"var(--border-strong)",boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold" style={{color:"var(--text-primary)"}}>Setup & Help</span>
+            <span className="text-[11px] font-semibold" style={{color:"var(--text-primary)"}}>Setup & Configuration</span>
             <button onClick={() => setShowWizard(false)} className="text-[10px] hover:underline" style={{color:"var(--text-muted)"}}>Esc</button>
           </div>
           <div className="space-y-3">
-            <div className="flex items-start gap-2">
-              <CheckCircle size={14} className="text-emerald-400 shrink-0 mt-0.5" />
-              <div>
-                <div className="text-[10px] font-semibold" style={{color:"var(--text-primary)"}}>Zero Setup Required</div>
-                <div className="text-[8px] mt-0.5" style={{color:"var(--text-muted)"}}>Mindrift reads Codex session logs automatically. No API keys or config files needed.</div>
+            <div>
+              <div className="text-[9px] font-semibold mb-1.5" style={{color:"var(--text-secondary)"}}>Platform Sources</div>
+              <div className="space-y-1">
+                {[{id:"codex",label:"Codex",desc:"~/.codex/sessions/",color:"#22d3ee"},{id:"claude-code",label:"Claude Code",desc:"~/.claude/projects/",color:"#a78bfa"},{id:"cursor",label:"Cursor",desc:"~/.cursor-tutor/",color:"#f59e0b"}].map(p => {
+                  const active = setupPlatforms.includes(p.id);
+                  return (
+                    <button key={p.id} onClick={() => setSetupPlatforms(prev => active ? prev.filter(x => x !== p.id) : [...prev, p.id])}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded border text-left transition-colors"
+                      style={{ borderColor: active ? p.color : "var(--border)", background: active ? p.color + "10" : "var(--bg-card)" }}>
+                      <div className="w-3 h-3 rounded border flex items-center justify-center text-[7px]" style={{ borderColor: active ? p.color : "var(--border)", background: active ? p.color : "transparent", color: "white" }}>
+                        {active ? "✓" : ""}
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold" style={{color: active ? p.color : "var(--text-secondary)"}}>{p.label}</div>
+                        <div className="text-[7px]" style={{color:"var(--text-muted)"}}>{p.desc}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className="border-t" style={{borderColor:"var(--border)"}} />
             <div>
-              <div className="text-[9px] font-semibold mb-1.5" style={{color:"var(--text-secondary)"}}>Quick Links</div>
-              <a href="https://github.com" target="_blank" className="flex items-center gap-1.5 text-[9px] hover:underline" style={{color:"var(--accent-cyan)"}}>
-                <ExternalLink size={10} />View on GitHub
-              </a>
-              <div className="text-[9px] mt-1.5 flex items-center gap-1.5" style={{color:"var(--text-muted)"}}>
-                <Settings size={10} />Session path: <code style={{fontSize:"8px",color:"var(--text-secondary)"}}>~/.codex/sessions/</code>
-              </div>
+              <div className="text-[9px] font-semibold mb-1.5" style={{color:"var(--text-secondary)"}}>Cost Estimation Model</div>
+              <select value={setupModel} onChange={e => setSetupModel(e.target.value)}
+                className="w-full px-2 py-1.5 rounded border text-[9px] outline-none"
+                style={{ borderColor:"var(--border)", background:"var(--bg-card)", color:"var(--text-primary)" }}>
+                <option value="custom">Autodetect (from session model)</option>
+                <option value="gpt-5">GPT-5 ($1.25/$10 per 1M)</option>
+                <option value="gpt-5-mini">GPT-5 Mini ($0.15/$0.60)</option>
+                <option value="gpt-4o">GPT-4o ($2.50/$10)</option>
+                <option value="claude-sonnet">Claude Sonnet 4 ($3/$15)</option>
+                <option value="claude-opus">Claude Opus 4 ($15/$75)</option>
+              </select>
             </div>
             <div className="border-t" style={{borderColor:"var(--border)"}} />
-            <div>
-              <div className="text-[9px] font-semibold mb-1" style={{color:"var(--text-secondary)"}}>How It Works</div>
-              <ol className="text-[8px] space-y-0.5" style={{color:"var(--text-muted)"}}>
-                <li>1. Codex writes session logs locally</li>
-                <li>2. Mindrift watches for new files</li>
-                <li>3. Dashboard updates in real-time</li>
-              </ol>
-              <div className="flex items-center gap-1.5 mt-1.5 text-[8px] px-2 py-1 rounded" style={{background:"rgba(0,212,255,0.08)",color:"var(--accent-cyan)",border:"1px solid rgba(0,212,255,0.15)"}}>
-                <HelpCircle size={10} />100% local · 0 instrumentation · No telemetry
-              </div>
+            <button onClick={saveConfig}
+              className="w-full py-2 rounded-lg text-[10px] font-semibold transition-colors hover:opacity-90"
+              style={{background:"var(--accent-cyan)",color:"#000"}}>
+              Apply & Refresh
+            </button>
+            <div className="border-t" style={{borderColor:"var(--border)"}} />
+            <div className="flex items-center gap-1.5 text-[8px] px-2 py-1 rounded" style={{background:"rgba(0,212,255,0.08)",color:"var(--accent-cyan)",border:"1px solid rgba(0,212,255,0.15)"}}>
+              <HelpCircle size={10} />100% local · 0 instrumentation · No telemetry
             </div>
           </div>
         </div>

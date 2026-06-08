@@ -19,5 +19,6 @@
     "singleTurnTokenLimit": 50000,
     "sessionDurationLimitMinutes": 60,
     "toolCallLimitPerTurn": 30
-  }
+  },
+  "costModel": "gpt-5"
 }
