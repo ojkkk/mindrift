@@ -75,6 +75,7 @@ function parseSession(raw: string): ParsedSession {
   let tn = 0;
   const seenTurnIds = new Set<string>();
   let lastCompactedMsg: string | null = null;
+  let prevCumIn = 0, prevCumOut = 0, prevCumReason = 0;
   const lines = raw.split("\n");
 
   for (const line of lines) {
@@ -135,6 +136,7 @@ function parseSession(raw: string): ParsedSession {
         }
       } else if (pt === "task_started") {
         cur.goalObjective = payload.objective || "";
+          if (payload.model_context_window) cur.ctxWindow = payload.model_context_window;
       } else if (pt === "task_completed") {
         cur.taskDone = true;
       } else if (pt === "task_aborted") {
@@ -220,6 +222,8 @@ function parseSession(raw: string): ParsedSession {
         cur.finishedAt = timestamp;
         if (cur.startedAt) {
           cur.duration = Math.round((new Date(timestamp).getTime() - new Date(cur.startedAt).getTime()) / 1000);
+        const cf = cur as any;
+        if (cf._cumIn !== undefined) { prevCumIn = cf._cumIn; prevCumOut = cf._cumOut; prevCumReason = cf._cumReason; }
         }
       }
     }
