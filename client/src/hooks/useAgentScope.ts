@@ -181,10 +181,19 @@ export function useAgentScope() {
   const selectedTurn = turns.find((t: Turn) => t.n === selectedTurnN) || null;
   const selectedTurnTools = selectedTurn ? allToolCalls.filter((tc: ToolCall) => tc.turnN === selectedTurn.n) : [];
 
+  const clearSession = useCallback(() => {
+    setCurrentSessionId(null);
+    setTurns([]);
+    setAllToolCalls([]);
+    setSelectedTurnN(null);
+    setPlanSteps([]);
+    setSessionMeta(null);
+  }, []);
+
   return {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN,
-    selectedTurn, selectedTurnTools, planSteps, planProgress,
+    selectedTurn, selectedTurnTools, planSteps, planProgress, clearSession,
     stats, activeView, setActiveView, allToolCalls, alerts,
   };
 }

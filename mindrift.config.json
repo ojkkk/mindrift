@@ -20,5 +20,5 @@
     "sessionDurationLimitMinutes": 60,
     "toolCallLimitPerTurn": 30
   },
-  "costModel": "gpt-5"
+  "costModel": "custom"
 }

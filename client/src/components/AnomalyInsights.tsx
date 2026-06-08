@@ -6,6 +6,8 @@ const fmt = (n: number) => { if (!n && n !== 0) return "0"; if (n >= 1e6) return
 
 export default function AnomalyInsights({ sessions, stats }: { sessions: SessionInfo[]; stats?: any }) {
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
+  const [showSelector, setShowSelector] = useState(false);
   
   const toggleCompare = (id: string) => {
     setCompareIds((prev: string[]) => {
@@ -17,13 +19,17 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
   
   const compareSessions = compareIds.map((id: string) => sessions.find((s: any) => s.id === id)).filter(Boolean);
   
-  const insights = useMemo(() => {
-    if (!sessions || sessions.length === 0) return null;
+  const selectedSessions = selectedSessionIds.length > 0
+    ? sessions.filter((s: any) => selectedSessionIds.includes(s.id))
+    : sessions;
 
-    const flagged = sessions.filter((s) => s.anomalies && s.anomalies.length > 0);
-    const totalTurns = sessions.reduce((a, s) => a + s.turnCount, 0);
-    const totalTokens = sessions.reduce((a, s) => a + s.totalTokens, 0);
-    const totalTools = sessions.reduce((a, s) => a + s.toolCallCount, 0);
+  const insights = useMemo(() => {
+    if (!selectedSessions || selectedSessions.length === 0) return null;
+
+    const flagged = selectedSessions.filter((s) => s.anomalies && s.anomalies.length > 0);
+    const totalTurns = selectedSessions.reduce((a, s) => a + s.turnCount, 0);
+    const totalTokens = selectedSessions.reduce((a, s) => a + s.totalTokens, 0);
+    const totalTools = selectedSessions.reduce((a, s) => a + s.toolCallCount, 0);
 
     // Count anomaly types
     const counts: Record<string, number> = {};
@@ -45,13 +51,15 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
       platforms[p] = (platforms[p] || 0) + 1;
     }
 
-    // Daily average
-    const firstSession = sessions[sessions.length - 1];
-    const lastSession = sessions[0];
-    const daysActive = firstSession && lastSession
-      ? Math.max(1, Math.round((new Date(lastSession.startedAt).getTime() - new Date(firstSession.startedAt).getTime()) / 86400000))
+    // Daily average — sort to find actual oldest/newest
+    const sortedByTime = [...selectedSessions].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+    const oldest = sortedByTime[0];
+    const newest = sortedByTime[sortedByTime.length - 1];
+    const daysActive = oldest && newest
+      ? Math.max(1, Math.ceil((new Date(newest.startedAt).getTime() - new Date(oldest.startedAt).getTime()) / 86400000))
       : 1;
-    const avgTokensPerDay = Math.round(totalTokens / daysActive / 1000);
+    const avgTokensPerDay = totalTokens > 0 && daysActive > 0 ? Math.round(totalTokens / daysActive) : 0;
+    const avgTokensPerTurn = totalTurns > 0 ? Math.round(totalTokens / totalTurns) : 0;
 
     return {
       flagged,
@@ -63,19 +71,70 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
       platforms,
       daysActive,
       avgTokensPerDay,
-      avgTokensPerTurn: totalTurns > 0 ? Math.round(totalTokens / totalTurns / 1000) : 0,
-      healthScore: flagged.length > 0 ? Math.round((1 - flagged.length / sessions.length) * 100) : 100,
+      avgTokensPerTurn,
+      healthScore: flagged.length > 0 ? Math.round((1 - flagged.length / selectedSessions.length) * 100) : 100,
+      // Client-side efficiency scores (based on selected sessions)
+      effTokenROI: totalTokens > 0 ? Math.min(100, Math.round((totalTools / Math.max(1, totalTokens / 100000)) * 100)) : 50,
+      effToolSuccess: selectedSessions.reduce((a: number, s: any) => a + s.toolSuccessRate, 0) / Math.max(1, selectedSessions.length),
+      effWasteRatio: totalTokens > 0 ? Math.round((selectedSessions.reduce((a: number, s: any) => a + (s.wastedTokens || 0), 0) / totalTokens) * 100) : 0,
     };
-  }, [sessions]);
+  }, [selectedSessions]);
 
   if (!insights) {
     return <div className="p-6 text-center text-[10px]" style={{ color: "var(--text-muted)" }}>Not enough data</div>;
   }
 
-  const { counts, topAnomalies, platforms, daysActive, avgTokensPerDay, avgTokensPerTurn, healthScore, flagged } = insights;
+  const { counts, topAnomalies, platforms, daysActive, avgTokensPerDay, avgTokensPerTurn, healthScore, flagged, effTokenROI, effToolSuccess, effWasteRatio } = insights;
+
+  const toggleSession = (id: string) => {
+    setSelectedSessionIds((prev: string[]) => {
+      if (prev.includes(id)) return prev.filter((x: string) => x !== id);
+      return [...prev, id];
+    });
+  };
 
   return (
     <div className="p-4 space-y-4">
+      {/* Session Selector */}
+      <div>
+        <button
+          onClick={() => setShowSelector(!showSelector)}
+          className="w-full flex items-center justify-between px-2 py-1.5 rounded text-[9px] font-semibold transition-colors"
+          style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}
+        >
+          <span>{selectedSessionIds.length > 0 ? `Selected ${selectedSessionIds.length} sessions` : `All ${sessions.length} sessions`}</span>
+          <span style={{ color: "var(--text-muted)", fontSize: "8px" }}>{showSelector ? "▲" : "▼"}</span>
+        </button>
+        {showSelector && (
+          <div className="mt-1 max-h-[200px] overflow-y-auto space-y-0.5 p-1 rounded" style={{ background: "var(--bg-card)" }}>
+            {sessions.slice(0, 30).map((s: any) => {
+              const sel = selectedSessionIds.length === 0 || selectedSessionIds.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => toggleSession(s.id)}
+                  className="w-full flex items-center gap-1.5 px-1.5 py-1 rounded text-left text-[8px] transition-colors hover:opacity-80"
+                  style={{ background: sel ? "var(--bg-hover)" : "transparent", color: sel ? "var(--text-primary)" : "var(--text-muted)" }}
+                >
+                  <div className={`w-2.5 h-2.5 rounded border flex items-center justify-center shrink-0`}
+                    style={{ borderColor: sel ? "var(--accent-cyan)" : "var(--border)", background: sel ? "var(--accent-cyan)" : "transparent" }}
+                  >
+                    {sel && <span style={{color:"#000",fontSize:"7px"}}>✓</span>}
+                  </div>
+                  <span className="truncate">{s.name?.slice(0, 40) || s.id?.slice(0, 12)}</span>
+                  <span className="font-mono ml-auto shrink-0" style={{color:"var(--text-muted)"}}>{fmt(s.totalTokens)}</span>
+                </button>
+              );
+            })}
+            {selectedSessionIds.length > 0 && (
+              <button onClick={() => setSelectedSessionIds([])} className="w-full text-[8px] py-1 text-center" style={{color:"var(--accent-cyan)"}}>
+                Reset to all sessions
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Health Score */}
       <div className="flex items-center justify-between p-3 rounded-xl" style={{
         background: healthScore >= 80 ? "rgba(16,185,129,0.06)" : healthScore >= 50 ? "rgba(245,158,11,0.06)" : "rgba(239,68,68,0.06)",
@@ -95,35 +154,40 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
 
       {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-2">
-        <MiniStat icon={<Zap size={10} className="text-cyan-400" />} label="Avg/Day" value={avgTokensPerDay + "K"} />
-        <MiniStat icon={<TrendingUp size={10} className="text-purple-400" />} label="Avg/Turn" value={avgTokensPerTurn + "K"} />
+        <MiniStat icon={<Zap size={10} className="text-cyan-400" />} label="Avg/Day" value={fmt(avgTokensPerDay)} />
+        <MiniStat icon={<TrendingUp size={10} className="text-purple-400" />} label="Avg/Turn" value={fmt(avgTokensPerTurn)} />
         <MiniStat icon={<Clock size={10} className="text-amber-400" />} label="Days" value={String(daysActive)} />
       </div>
 
-      {/* Efficiency Breakdown */}
-      {stats?.efficiencyScores && (
-        <div>
-          <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Efficiency Score</div>
-          <div className="text-[7px] mb-1" style={{ color: "var(--text-dim)" }}>Composite: tool success + waste avoidance + context util + token ROI</div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="text-2xl font-bold font-mono" style={{
-              color: stats.efficiencyScores.overall >= 70 ? "var(--accent-green)" : stats.efficiencyScores.overall >= 40 ? "var(--accent-amber)" : "var(--accent-red)"
-            }}>{stats.efficiencyScores.overall}%</div>
-            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-card)" }}>
-              <div className="h-full rounded-full transition-all duration-500" style={{
-                width: stats.efficiencyScores.overall + "%",
-                background: stats.efficiencyScores.overall >= 70 ? "linear-gradient(90deg, #22d3ee, #10b981)" : stats.efficiencyScores.overall >= 40 ? "linear-gradient(90deg, #f59e0b, #fbbf24)" : "linear-gradient(90deg, #ef4444, #f87171)"
-              }} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <EffMini label="Tool Success" value={stats.efficiencyScores.toolSuccess} />
-            <EffMini label="Token ROI" value={stats.efficiencyScores.tokenROI} />
-            <EffMini label="Context Util" value={stats.efficiencyScores.contextUtil} />
-            <EffMini label="Waste Ratio" value={100 - stats.efficiencyScores.wasteRatio} invert />
-          </div>
-        </div>
-      )}
+      {/* Efficiency Breakdown (based on selected sessions) */}
+      <div>
+        <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Efficiency Score</div>
+        <div className="text-[7px] mb-1" style={{ color: "var(--text-dim)" }}>Based on {selectedSessions.length} selected sessions</div>
+        {(() => {
+          const overall = Math.round((effTokenROI + effToolSuccess + (100 - effWasteRatio) + healthScore) / 4);
+          return (
+            <>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="text-2xl font-bold font-mono" style={{
+                  color: overall >= 70 ? "var(--accent-green)" : overall >= 40 ? "var(--accent-amber)" : "var(--accent-red)"
+                }}>{overall}%</div>
+                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-card)" }}>
+                  <div className="h-full rounded-full transition-all duration-500" style={{
+                    width: overall + "%",
+                    background: overall >= 70 ? "linear-gradient(90deg, #22d3ee, #10b981)" : overall >= 40 ? "linear-gradient(90deg, #f59e0b, #fbbf24)" : "linear-gradient(90deg, #ef4444, #f87171)"
+                  }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <EffMini label="Tool Success" value={Math.round(effToolSuccess)} />
+                <EffMini label="Token ROI" value={effTokenROI} />
+                <EffMini label="Health" value={healthScore} />
+                <EffMini label="Waste Ratio" value={effWasteRatio} invert />
+              </div>
+            </>
+          );
+        })()}
+      </div>
 
       {/* Session Categories */}
       {stats?.categoryCounts && Object.keys(stats.categoryCounts).length > 0 && (
@@ -274,8 +338,8 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
 }
 
 function EffMini({ label, value, invert }: { label: string; value: number; invert?: boolean }) {
-  const color = !invert
-    ? value >= 70 ? "var(--accent-green)" : value >= 40 ? "var(--accent-amber)" : "var(--accent-red)"
+  const color = invert
+    ? value <= 30 ? "var(--accent-green)" : value <= 60 ? "var(--accent-amber)" : "var(--accent-red)"
     : value >= 70 ? "var(--accent-green)" : value >= 40 ? "var(--accent-amber)" : "var(--accent-red)";
   return (
     <div className="flex items-center justify-between px-2 py-1 rounded" style={{ background: "var(--bg-card)" }}>

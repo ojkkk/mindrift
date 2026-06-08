@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from "react";
+import React, { useState, useEffect, useMemo, Suspense, lazy } from "react";
 import { useAgentScope } from "./hooks/useAgentScope";
 import SessionFilter from "./components/SessionFilter";
 import SessionBar from "./components/SessionBar";
@@ -26,7 +26,7 @@ const saveConfig = async () => {
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ costModel: setupModel, platforms: setupPlatforms }),
+        body: JSON.stringify({ costModel: setupModel, platform: activePlatform }),
       });
       if (res.ok) {
         setTimeout(() => window.location.reload(), 500);
@@ -40,15 +40,17 @@ const App: React.FC = () => {
   const {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN, selectedTurn, selectedTurnTools,
-    planSteps, planProgress, stats, activeView, setActiveView, allToolCalls, alerts,
+    planSteps, planProgress, stats, activeView, setActiveView, allToolCalls, alerts, clearSession,
   } = useAgentScope();
+
+  useEffect(() => { (window as any).__loadSession = loadSession; return () => { delete (window as any).__loadSession; }; }, [loadSession]);
 
   const [filteredSessions, setFilteredSessions] = useState<any>(null); const [showWizard, setShowWizard] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [setupModel, setSetupModel] = useState("custom");
-  const [setupPlatforms, setSetupPlatforms] = useState<string[]>(["codex"]);
+  const [activePlatform, setActivePlatform] = useState<string>(() => localStorage.getItem("mindrift-platform") || "codex");
   const [theme, setTheme] = useState(() => localStorage.getItem("mindrift-theme") || "dark");
-  const displaySessions = filteredSessions || sessions;
+  const displaySessions = (filteredSessions || sessions).filter((s: any) => !activePlatform || activePlatform === "all" || s.source === activePlatform);
 
   useEffect(() => {
     document.documentElement.className = theme;
@@ -57,14 +59,47 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
-  const todayTok = stats?.today?.tokens || 0;
-  const monthTok = stats?.month?.tokens || 0;
-  const todaySes = stats?.today?.sessions || 0;
-  const allSes = stats?.all?.sessions || 0;
-  const allTurns = stats?.all?.turns || 0;
-  const anomalies = stats?.anomalies || 0;
+  // Client-side stats from platform-filtered displaySessions
+  const clientStats = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    let todayTok = 0, todaySes = 0, monthTok = 0, monthSes = 0, allTok2 = 0, allTurns2 = 0;
+    for (const s of displaySessions) {
+      const mod = s.lastModified ? new Date(s.lastModified).getTime() : new Date(s.startedAt).getTime();
+      const ts = new Date(s.startedAt).getTime();
+      allTok2 += s.totalTokens || 0;
+      allTurns2 += s.turnCount || 0;
+      if (mod >= todayStart) { todayTok += s.totalTokens || 0; todaySes++; }
+      if (ts >= monthStart) { monthTok += s.totalTokens || 0; monthSes++; }
+    }
+    return { todayTok, todaySes, monthTok, monthSes, allTok: allTok2, allTurns: allTurns2, allSes: displaySessions.length };
+  }, [displaySessions]);
+  
+  const todayTok = clientStats.todayTok;
+  const monthTok = clientStats.monthTok;
+  const todaySes = clientStats.todaySes;
+  const allSes = clientStats.allSes;
+  const allTurns = clientStats.allTurns;
+  
+  // Client-side pricing + cost estimation
+  const PRICING: Record<string, {input:number;output:number}> = {
+    "custom": {input:0.50,output:2},"gpt-5": {input:1.25,output:10},"gpt-5-mini": {input:0.15,output:0.60},
+    "gpt-4o": {input:2.50,output:10},"claude-sonnet": {input:3,output:15},"claude-opus": {input:15,output:75},
+    "deepseek-v4-pro": {input:0.55,output:2.19},
+  };
+  const estCost = useMemo(() => {
+    let totalIn = 0, totalOut = 0;
+    for (const s of displaySessions) {
+      totalIn += (s.totalTokens || 0) * 0.7;
+      totalOut += (s.totalTokens || 0) * 0.3;
+    }
+    const p = PRICING[setupModel] || PRICING["custom"];
+    return (totalIn / 1e6) * p.input + (totalOut / 1e6) * p.output;
+  }, [displaySessions, setupModel]);
+  const anomalies = displaySessions.filter((s: any) => s.anomalies && s.anomalies.length > 0).length;
   const currentSession = sessions.find((s: any) => s.id === currentSessionId) || null;
-  const efficiency = stats?.efficiency || 0;
+  const efficiency = displaySessions.length > 0 ? Math.round(displaySessions.reduce((a: number, s: any) => a + (s.efficiencyScore || 50), 0) / displaySessions.length) : 0;
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg-deep)", color: "var(--text-primary)" }}>
       <div className="absolute inset-0 pointer-events-none opacity-[0.012]" style={{ backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
@@ -90,7 +125,8 @@ const App: React.FC = () => {
           <StatPill icon={<Activity size={10} className="text-emerald-400" />} label="Today" value={String(todaySes)} unit="sessions" />
           <StatPill icon={<BarChart3 size={10} style={{color:"var(--text-muted)"}} />} label="Total" value={String(allSes)} unit="sessions" />
           {anomalies > 0 && <StatPill icon={<Flame size={10} className="text-red-400" />} label="Alerts" value={String(anomalies)} unit="" alert />}
-          {stats?.estimatedCost != null && <StatPill icon={<DollarSign size={10} className="text-emerald-400" />} label="Est. Cost" value={formatCost(stats.estimatedCost)} unit="" />}
+          {sessions[0]?.provider && <StatPill icon={<Cpu size={10} className="text-cyan-400" />} label="API" value={sessions[0].provider} unit="" />}
+          {estCost > 0 && <StatPill icon={<DollarSign size={10} className="text-emerald-400" />} label="Est. Cost" value={formatCost(estCost)} unit="" title={"Model: " + setupModel} />}
         </div>
 
         {/* Right: theme toggle + live status */}
@@ -109,7 +145,7 @@ const App: React.FC = () => {
             if (!showWizard) {
               fetch("/api/config").then(r => r.json()).then(c => {
                 setSetupModel(c.costModel || "custom");
-                setSetupPlatforms(c.sources?.map((s:any) => s.type) || ["codex"]);
+                if (c.platform) setActivePlatform(c.platform);
               }).catch(() => {});
             }
             setShowWizard(!showWizard);
@@ -150,7 +186,7 @@ const App: React.FC = () => {
           <TurnSidebar turns={turns} selectedTurnN={selectedTurnN} onSelect={setSelectedTurnN} />
         </div>
         <TurnDetail
-          turn={selectedTurn} planSteps={planSteps} planProgress={planProgress} turnTools={selectedTurnTools} sessions={sessions}
+          turn={selectedTurn} planSteps={planSteps} planProgress={planProgress} turnTools={selectedTurnTools} sessions={sessions} currentSession={currentSession}
           activeView={activeView} setActiveView={setActiveView} sessionMeta={sessionMeta}
           turns={turns} selectedTurnN={selectedTurnN} setSelectedTurnN={setSelectedTurnN}
           allToolCalls={allToolCalls} stats={stats}
@@ -166,9 +202,14 @@ const App: React.FC = () => {
               <div className="text-[9px] font-semibold mb-1.5" style={{color:"var(--text-secondary)"}}>Platform Sources</div>
               <div className="space-y-1">
                 {[{id:"codex",label:"Codex",desc:"~/.codex/sessions/",color:"#22d3ee"},{id:"claude-code",label:"Claude Code",desc:"~/.claude/projects/",color:"#a78bfa"},{id:"cursor",label:"Cursor",desc:"~/.cursor-tutor/",color:"#f59e0b"}].map(p => {
-                  const active = setupPlatforms.includes(p.id);
+                  const active = activePlatform === p.id;
                   return (
-                    <button key={p.id} onClick={() => setSetupPlatforms(prev => active ? prev.filter(x => x !== p.id) : [...prev, p.id])}
+                    <button key={p.id} onClick={() => { 
+                    setActivePlatform(p.id); 
+                    setFilteredSessions(null); 
+                    clearSession();
+                    localStorage.setItem("mindrift-platform", p.id); 
+                  }}
                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded border text-left transition-colors"
                       style={{ borderColor: active ? p.color : "var(--border)", background: active ? p.color + "10" : "var(--bg-card)" }}>
                       <div className="w-3 h-3 rounded border flex items-center justify-center text-[7px]" style={{ borderColor: active ? p.color : "var(--border)", background: active ? p.color : "transparent", color: "white" }}>
@@ -195,6 +236,7 @@ const App: React.FC = () => {
                 <option value="gpt-4o">GPT-4o ($2.50/$10)</option>
                 <option value="claude-sonnet">Claude Sonnet 4 ($3/$15)</option>
                 <option value="claude-opus">Claude Opus 4 ($15/$75)</option>
+                <option value="deepseek-v4-pro">DeepSeek V4 Pro ($0.55/$2.19)</option>
               </select>
             </div>
             <div className="border-t" style={{borderColor:"var(--border)"}} />

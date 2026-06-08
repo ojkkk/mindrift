@@ -13,7 +13,7 @@ const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e3) return (n / 1e
 const fmtMs = (ms) => { if (!ms) return "\u2014"; if (ms < 1000) return ms + "ms"; return (ms / 1000).toFixed(1) + "s"; };
 const fmtDur = (sec) => { if (sec == null) return ""; if (sec < 60) return sec + "s"; const m = Math.floor(sec / 60); return m + "m " + (sec % 60) + "s"; };
 
-export default function TurnDetail({ turn, planSteps, planProgress, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls, sessions, stats }) {
+export default function TurnDetail({ turn, planSteps, planProgress, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls, sessions, stats, currentSession }: any) {
   const isDark = document.documentElement.className !== "light";
 
   if (!turn && activeView !== "allturns" && activeView !== "insights" && activeView !== "trends") {
@@ -136,7 +136,7 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
                 <TabBar activeView={activeView} setActiveView={setActiveView} />
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto"><SessionTrend sessions={sessions} /></div>
+            <div className="flex-1 overflow-y-auto"><SessionTrend sessions={sessions} onSelectSession={(id) => { if (window.__loadSession) window.__loadSession(id); }} /></div>
           </div>
         )}
       </Suspense>

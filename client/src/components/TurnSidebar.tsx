@@ -72,31 +72,34 @@ export default function TurnSidebar({ turns, selectedTurnN, onSelect }: { turns:
               <p className="text-[10px] leading-relaxed mb-1.5 line-clamp-2" style={{ color: isActive ? "var(--text-primary)" : "var(--text-secondary)" }}>
                 {userPreview}
               </p>
-              <div className="flex items-center gap-3 text-[9px]">
-                <span style={{ display:"flex", flexDirection:"column", gap:"1px", color:"var(--text-muted)" }}>
-                  <span style={{display:"flex",alignItems:"center",gap:"3px"}}><span style={{color:"var(--accent-cyan)",fontSize:"8px",width:"16px"}}>in</span><span className="font-mono text-[9px]">{fmt(tok.in||0)}</span></span>
-                  <span style={{display:"flex",alignItems:"center",gap:"3px"}}><span style={{color:"var(--accent-green)",fontSize:"8px",width:"16px"}}>out</span><span className="font-mono text-[9px]">{fmt(tok.out||0)}</span></span>
-                </span>
-                <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
-                  <Wrench size={9} style={{color:"var(--accent-purple)", opacity:0.6}} />
-                  <span className="font-mono">{turn.tc || 0}</span>
-                </span>
-                {ctxPct > 0 && (
-                  <span className="flex items-center gap-1 ml-auto" style={{ color: "var(--text-muted)" }}>
-                    <span className="font-mono" style={{ color: ctxPct > 80 ? "var(--accent-red)" : ctxPct > 40 ? "var(--accent-amber)" : "var(--accent-green)" }}>
-                      {ctxPct}%
+              <div className="flex flex-col gap-1 text-[9px]">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span style={{display:"flex",alignItems:"center",gap:"3px",color:"var(--text-muted)"}}><span style={{color:"var(--accent-cyan)",fontSize:"8px"}}>in</span><span className="font-mono text-[9px]">{fmt(tok.in||0)}</span></span>
+                  <span style={{display:"flex",alignItems:"center",gap:"3px",color:"var(--text-muted)"}}><span style={{color:"var(--accent-green)",fontSize:"8px"}}>out</span><span className="font-mono text-[9px]">{fmt(tok.out||0)}</span></span>
+                  <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+                    <Wrench size={9} style={{color:"var(--accent-purple)", opacity:0.6}} />
+                    <span className="font-mono">{turn.tc || 0}</span>
+                  </span>
+                  {ctxPct > 0 && (
+                    <span className="font-mono text-[8px]" style={{ color: ctxPct > 80 ? "var(--accent-red)" : ctxPct > 40 ? "var(--accent-amber)" : "var(--accent-green)" }}>
+                      ctx{ctxPct}%
                     </span>
-                  </span>
-                )}
-                {turn.turnEfficiency && turn.turnEfficiency.overall > 0 && (
-                  <span className="flex items-center gap-0.5 ml-auto px-1 rounded" style={{
-                    background: turn.turnEfficiency.overall >= 70 ? "rgba(16,185,129,0.1)" : turn.turnEfficiency.overall >= 40 ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)",
-                    color: turn.turnEfficiency.overall >= 70 ? "var(--accent-green)" : turn.turnEfficiency.overall >= 40 ? "var(--accent-amber)" : "var(--accent-red)",
-                    fontSize: "7px"
-                  }}>
-                    {turn.turnEfficiency.overall}%
-                  </span>
-                )}
+                  )}
+                  {(turn.wastedTokens || 0) > 0 && (
+                    <span className="flex items-center gap-0.5" style={{ color: "rgba(255,94,94,0.7)" }} title="Wasted tokens">
+                      <Zap size={8} style={{color:"rgba(255,94,94,0.5)"}} />
+                      <span className="font-mono text-[8px]">{fmt(turn.wastedTokens || 0)}</span>
+                    </span>
+                  )}
+                  {turn.turnEfficiency && turn.turnEfficiency.overall > 0 && (
+                    <span className="px-1 rounded text-[7px] font-mono" title={"Efficiency: " + turn.turnEfficiency.overall + "%"} style={{
+                      background: turn.turnEfficiency.overall >= 70 ? "rgba(16,185,129,0.1)" : turn.turnEfficiency.overall >= 40 ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)",
+                      color: turn.turnEfficiency.overall >= 70 ? "var(--accent-green)" : turn.turnEfficiency.overall >= 40 ? "var(--accent-amber)" : "var(--accent-red)",
+                    }}>
+                      eff{turn.turnEfficiency.overall}%
+                    </span>
+                  )}
+                </div>
               </div>
             </button>
           );

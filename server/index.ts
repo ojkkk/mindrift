@@ -137,7 +137,7 @@ function parseSession(raw: string): ParsedSession {
         startedAt: timestamp, finishedAt: null, tc: 0,
         tokens: { in: 0, out: 0, reason: 0 },
         ctxWindow: 0, userMsg: "", agentMessages: [], agentSummary: "",
-        reasoning: "", duration: null, compacted: false, compactRestarts: 0,
+        reasoning: "", duration: null, compacted: false, compactRestarts: 0, model: payload.model || "",
         compactSummary: lastCompactedMsg || "", goalObjective: "",
         aborted: false, abortReason: "", taskDone: false,
         planSteps: [],
@@ -265,7 +265,7 @@ function parseSession(raw: string): ParsedSession {
           existing.output = (payload.output || "").slice(0, 500);
           existing.outputFull = payload.output || "";
           existing.outputSize = (payload.output || "").length;
-          existing.dur = timestamp ? Date.now() - new Date(existing.ts).getTime() : null;
+          existing.dur = new Date(timestamp).getTime() - new Date(existing.ts).getTime();
           if (payload.error) existing.error = payload.error;
           if (payload.read_files) existing.readFiles = payload.read_files;
         }
@@ -316,16 +316,20 @@ function parseSession(raw: string): ParsedSession {
     total: R.planSteps.length
   };
   // Mark last turn finished ONLY for stale/inactive sessions (file not modified in 60s)
-  // For live sessions being actively written, leave the last turn as-is
+  // Mark last turn as done if AI has finished responding
   const last = R.turns[tn - 1];
   if (last && !last.finishedAt && last.agentMessages.length > 0) {
-    // Check if this is a stale session (not modified recently)
+    // Check if file has stopped being modified (AI is done writing)
     const isStale = currentSessionFile
-      ? (Date.now() - fs.statSync(currentSessionFile).mtimeMs > 60000)
+      ? (Date.now() - fs.statSync(currentSessionFile).mtimeMs > 5000)
       : true;
+    // Check if all tool calls for this turn are complete
+    const turnTools = R.toolCalls.filter((tc: ToolCall) => tc.turnN === last.n);
+    const pendingTools = turnTools.filter((tc: ToolCall) => !tc.done);
+    const allToolsDone = turnTools.length === 0 || pendingTools.length === 0;
     // Also check: if last turn has turn_context after it (new turn started), it's done
     const hasNextTurn = R.turns.some((t: Turn) => t.n > last.n);
-    if (isStale || hasNextTurn) {
+    if ((isStale && allToolsDone) || hasNextTurn) {
     last.finishedAt = last.agentMessages[last.agentMessages.length - 1].ts;
     if (last.startedAt) {
       last.duration = Math.round((new Date(last.finishedAt).getTime() - new Date(last.startedAt).getTime()) / 1000);
@@ -361,6 +365,20 @@ function parseSession(raw: string): ParsedSession {
   return R;
 }
 
+function detectProvider(model: string): string {
+  if (!model) return "custom";
+  const m = model.toLowerCase();
+  if (m.includes("gpt-") || m.includes("o1") || m.includes("o3") || m.includes("o4")) return "openai";
+  if (m.includes("claude")) return "anthropic";
+  if (m.includes("deepseek")) return "deepseek";
+  if (m.includes("minimax") || m.includes("mimo")) return "minimax";
+  if (m.includes("kimi")) return "moonshot";
+  if (m.includes("glm")) return "zhipu";
+  if (m.includes("qwen")) return "alibaba";
+  if (m.includes("hy3") || m.includes("hunyuan")) return "tencent";
+  return "custom";
+}
+
 function scanAllSessions(): SessionInfo[] {
   const sessions: SessionInfo[] = [];
   if (!fs.existsSync(CODEX_SESSIONS)) return sessions;
@@ -390,6 +408,7 @@ function scanAllSessions(): SessionInfo[] {
         let doneToolCount = 0;
         let abortedTurnCount = 0;
         let compactedTurnCount = 0;
+        let modelDetected = "";
         const seenTurns = new Set<string>();
 
         for (const line of lines) {
@@ -399,6 +418,7 @@ function scanAllSessions(): SessionInfo[] {
 
           if (type === "session_meta") { meta = payload; }
           if (type === "turn_context" && payload.turn_id) {
+            if (payload.model && !modelDetected) modelDetected = payload.model;
             if (!seenTurns.has(payload.turn_id)) { seenTurns.add(payload.turn_id); turnCount++; }
           }
           if (type === "event_msg" && payload.type === "token_count" && (payload.info?.total_token_usage || payload.total_token_usage)) {
@@ -406,13 +426,22 @@ function scanAllSessions(): SessionInfo[] {
           }
           if (type === "response_item" && payload.type === "function_call") { toolCallCount++; }
           if (type === "response_item" && payload.type === "function_call_output" && !payload.error) { doneToolCount++; }
-          if (type === "turn_aborted") { abortedTurnCount++; }
+          if (type === "event_msg" && payload.type === "turn_aborted") { abortedTurnCount++; }
           if (type === "event_msg" && payload.type === "compacted_context") { compactedTurnCount++; }
           if (type === "event_msg" && payload.type === "user_message" && !name) {
             name = extractFirstLine(payload.message || "");
           }
         }
         if (turnCount === 0 && meta) continue;
+
+        // Precise wasted tokens: for sessions with aborted/compacted turns, do a full parse
+        let wastedTokens = 0;
+        if (abortedTurnCount > 0 || compactedTurnCount > 0) {
+          try {
+            const full = parseSession(raw);
+            wastedTokens = full.turns.reduce((sum: number, t: Turn) => sum + (t.wastedTokens || 0), 0);
+          } catch { /* fallback: wastedTokens stays 0 */ }
+        }
 
         const anomalies: string[] = [];
         if (turnCount > 0 && totalTokens / turnCount > 50000) anomalies.push("high-tokens");
@@ -429,11 +458,11 @@ function scanAllSessions(): SessionInfo[] {
           turnCount,
           totalTokens,
           toolCallCount,
-          model: meta?.model_provider || "custom",
+          model: modelDetected || meta?.model_provider || "custom",
           cwd: meta?.cwd || "",
           anomalies,
-          source: "codex",
-          wastedTokens: 0,
+          source: "codex", provider: detectProvider(modelDetected || meta?.model_provider || ""),
+          wastedTokens,
           toolSuccessRate: toolCallCount > 0 ? Math.round((doneToolCount / toolCallCount) * 100) : 100,
           efficiencyScore: 50,
           category: "",
@@ -501,6 +530,9 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   "gpt-5": { input: 1.25, output: 10 },
   "gpt-4o": { input: 2.50, output: 10 },
   "gpt-4o-mini": { input: 0.15, output: 0.60 },
+  "deepseek-v4-pro": { input: 0.55, output: 2.19 },
+  "deepseek-v4-flash": { input: 0.14, output: 0.55 },
+  "deepseek": { input: 0.55, output: 2.19 },
   "claude-sonnet-4-20250514": { input: 3, output: 15 },
   "claude-opus-4-20250514": { input: 15, output: 75 },
   "claude-3.5-sonnet": { input: 3, output: 15 },
@@ -547,10 +579,22 @@ function computeStats(sessions: SessionInfo[]): Stats {
   const avgTpt = totalAllTurns > 0 ? Math.round(totalAllTokens / totalAllTurns / 1000) : 0;
   const toolSuccessRate = totalAllTools > 0 ? Math.round((totalDoneTools / totalAllTools) * 100) : 100;
   const wasteRatio = totalAllTokens > 0 ? Math.round((totalWasted / totalAllTokens) * 100) : 0;
-  const contextUtil = totalAllTurns > 0 ? Math.min(100, Math.round((totalAllTools * 2000 / Math.max(1, totalAllTokens)) * 50 + 50)) : 50;
-  const tokenROI = totalAllTokens > 0 ? Math.min(100, Math.round((totalAllTurns * 1000 / totalAllTokens) * 100)) : 50;
+  // Context headroom: % of sessions where avg tokens/turn is under 150K (fits in context window)
+  let sessionsWithHeadroom = 0;
+  let sessionsWithTurns2 = 0;
+  for (const s of sessions) {
+    if (s.turnCount > 0 && s.totalTokens > 0) {
+      sessionsWithTurns2++;
+      if (s.totalTokens / s.turnCount < 150000) sessionsWithHeadroom++;
+    }
+  }
+  const contextUtil = sessionsWithTurns2 > 0 ? Math.round((sessionsWithHeadroom / sessionsWithTurns2) * 100) : 100;
+  // Token ROI: successful tool calls per 100K tokens (higher = more productive per token)
+  const tokenROI = totalAllTokens > 0
+    ? Math.min(100, Math.round((totalDoneTools / Math.max(1, totalAllTokens / 100000)) * 100))
+    : 50;
   const overall = Math.round(
-    toolSuccessRate * 0.3 + (100 - Math.min(100, wasteRatio)) * 0.25 + contextUtil * 0.25 + Math.min(100, tokenROI) * 0.2
+    toolSuccessRate * 0.20 + (100 - Math.min(100, wasteRatio)) * 0.20 + contextUtil * 0.30 + Math.min(100, tokenROI) * 0.30
   );
 
   const catCounts: Record<string, number> = {};
@@ -854,8 +898,28 @@ setInterval(() => {
     switchToSession(s[0].filePath);
     broadcast("new_session", {});
   }
+  // Periodic turn-completion check for active session
+  if (currentSessionFile && turns.length > 0) {
+    const last = turns[turns.length - 1];
+    if (last && !last.finishedAt && last.agentMessages.length > 0) {
+      try {
+        const raw = fs.readFileSync(currentSessionFile, "utf-8");
+        const p = parseSession(raw);
+        if (p && p.turns && p.turns.length > 0) {
+          const newLast = p.turns[p.turns.length - 1];
+          if (newLast && newLast.finishedAt) {
+            turns = p.turns;
+            toolCalls = p.toolCalls;
+            planSteps = p.planSteps;
+            tokenMetrics = { total: p.tokenTotal, contextWindow: p.ctxWindow, planProgress: p.planProgress };
+            broadcastFullState();
+          }
+        }
+      } catch { /* skip */ }
+    }
+  }
   broadcast("stats_update", computeStats(s));
-}, 5000);
+}, 3000);
 
 const ses = scanAllSessions();
 const sts = computeStats(ses);

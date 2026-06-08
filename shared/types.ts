@@ -116,6 +116,7 @@ export interface SessionInfo {
   name: string;
   filePath: string;
   source: string;
+  provider?: string;
   startedAt: string;
   lastModified?: string;
   turnCount: number;
