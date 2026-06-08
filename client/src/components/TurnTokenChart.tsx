@@ -1,3 +1,4 @@
+import React from "react";
 import { useMemo } from "react";
 import { Zap, TrendingUp } from "lucide-react";
 

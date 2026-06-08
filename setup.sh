@@ -33,7 +33,7 @@ fi
 echo "      Done."
 
 echo "[4/4] Starting Mindrift server..."
-cd ../server && node index.js &
+cd ../server && npx tsx index.ts &
 sleep 2
 
 echo ""

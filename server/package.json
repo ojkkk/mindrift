@@ -5,13 +5,20 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js"
+    "start": "tsx index.ts",
+    "dev": "tsx --watch index.ts"
   },
   "dependencies": {
     "chokidar": "^4.0.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
   }
 }

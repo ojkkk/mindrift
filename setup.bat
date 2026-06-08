@@ -38,7 +38,7 @@ echo       Done.
 
 echo [4/4] Starting Mindrift server...
 cd ..\server
-start "Mindrift" /MIN node index.js
+start "Mindrift" /MIN cmd /c "npx tsx index.ts"
 
 timeout /t 2 /nobreak >nul
 

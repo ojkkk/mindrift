@@ -1,3 +1,4 @@
+import React from "react";
 import { useState } from "react";
 import { Brain, Wrench, MessageCircle, ChevronDown, ChevronRight, AlertCircle, CheckCircle2, RotateCw, Terminal, FileText, Bot } from "lucide-react";
 

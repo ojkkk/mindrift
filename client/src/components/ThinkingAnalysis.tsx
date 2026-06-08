@@ -1,3 +1,4 @@
+import React from "react";
 import { useMemo } from "react";
 import { Brain, Target, RotateCw, AlertTriangle, Bug, Lightbulb, CheckCircle2 } from "lucide-react";
 
