@@ -1,5 +1,4 @@
-// @ts-nocheck — JSX render component, types to be added gradually
-
+import type { Turn } from '../../../shared/types';
 import { MessageCircle, Zap, Wrench, Clock, Loader2, XCircle } from "lucide-react";
 
 const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; if (n < 1000) return String(Math.round(n)); return String(n); };
@@ -7,7 +6,7 @@ function fmtDur(sec) { if (sec == null) return ""; if (sec < 60) return sec + "s
 
 const isDark = () => document.documentElement.className !== "light";
 
-export default function TurnSidebar({ turns, selectedTurnN, onSelect }) {
+export default function TurnSidebar({ turns, selectedTurnN, onSelect }: { turns: Turn[]; selectedTurnN: number | null; onSelect: (n: number) => void }) {
   return (
     <div className="flex flex-col h-full glass border-r" style={{ borderColor: "var(--border)" }}>
       <div className="shrink-0 px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -60,7 +59,7 @@ export default function TurnSidebar({ turns, selectedTurnN, onSelect }) {
                 <div className="flex items-center gap-1.5">
                   {turn.duration != null && <span className="text-[8px]" style={{ color: "var(--text-muted)" }}>{fmtDur(turn.duration)}</span>}
                   {isAborted ? (
-                    <XCircle size={11} style={{color:"var(--accent-red)"}} title={`Aborted: ${turn.abortReason || "interrupted"}`} />
+                    <XCircle size={11} style={{color:"var(--accent-red)"}} />
                   ) : isDone ? (
                     <div className="w-1.5 h-1.5 rounded-full" style={{background:"var(--accent-green)", opacity:0.7}} title="Done" />
                   ) : turn.compacted ? (

@@ -1,5 +1,3 @@
-// @ts-nocheck — JSX render component, types to be added gradually
-
 import { useState, useMemo } from "react";
 import { Zap, Wrench, GitBranch, Brain, Circle, Clock, User, Bot, ChevronDown, ChevronRight, Eye, Columns, FileText, AlertTriangle, Lightbulb, BarChart3, Activity, Cpu, Gauge, Thermometer, ShieldCheck, ShieldAlert } from "lucide-react";
 import Timeline from "./Timeline";
@@ -201,7 +199,7 @@ function ContextGauge({ pct, ctxWindow, used }) {
 }
 
 /* ====== Agent Health (NEW MODULE) ====== */
-function AgentHealth({ turn, turnTools }) {
+function AgentHealth({ turn, turnTools }: { turn: any; turnTools: any[] }) {
   const errCount = turnTools.filter((t) => t && t.error).length;
   const doneCount = turnTools.filter((t) => t && t.done).length;
   const total = turnTools.length;
@@ -245,7 +243,7 @@ function AgentHealth({ turn, turnTools }) {
   );
 }
 
-function StatusChip({ label, active, detail }) {
+function StatusChip({ label, active, detail }: { label: any; active: any; detail?: any }) {
   return (
     <div className="flex items-center gap-1 px-1.5 py-1 rounded" style={{ background: active ? "rgba(239,68,68,0.1)" : "var(--bg-card)", color: active ? "var(--accent-red)" : "var(--text-muted)" }}>
       {active ? <ShieldAlert size={8} /> : <ShieldCheck size={8} />}
@@ -255,7 +253,7 @@ function StatusChip({ label, active, detail }) {
 }
 
 /* ====== Plan Step List ====== */
-function PlanStepList({ steps }) {
+function PlanStepList({ steps }: { steps: any[] }) {
   if (!steps || steps.length === 0) {
     return <div className="p-3 text-[9px] text-center" style={{ color: "var(--text-muted)" }}>No plan steps recorded</div>;
   }
@@ -277,7 +275,7 @@ function PlanStepList({ steps }) {
 }
 
 /* ====== Tool Call Row (click-expand) ====== */
-function ToolCallRow({ tc }) {
+function ToolCallRow({ tc }: { tc: any }) {
   const [open, setOpen] = useState(false);
   if (!tc) return null;
   const label = (tc.name || "tool").replace(/_/g, " ");
@@ -308,7 +306,7 @@ function ToolCallRow({ tc }) {
 }
 
 /* ====== Panel wrapper ====== */
-function Panel({ icon, title, count, children }) {
+function Panel({ icon, title, count, children }: { icon: any; title: any; count?: any; children: any }) {
   return (
     <div className="glass flex flex-col min-h-0 overflow-hidden">
       <div className="shrink-0 flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>

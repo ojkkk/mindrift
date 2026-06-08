@@ -1,5 +1,3 @@
-// @ts-nocheck — JSX render component, types to be added gradually
-
 import { useMemo } from "react";
 import { Brain, Target, RotateCw, AlertTriangle, Bug, Lightbulb, CheckCircle2 } from "lucide-react";
 
@@ -8,7 +6,7 @@ export default function ThinkingAnalysis({ turn }) {
     if (!turn || !turn.reasoning) return null;
     const text = turn.reasoning;
 
-    const stateIndicators = [];
+    const stateIndicators: any[] = [];
     if (text.match(/goal|objective|task|要做|任务|目标/i))
       stateIndicators.push({ state: "goal_clear", label: "Task focused", tip: "Agent understands the objective", icon: Target, color: "text-emerald-400", bg: "bg-emerald-400/5 border-emerald-400/20" });
     const retryCount = (text.match(/retry|重试|again|再次|re-attempt/gi) || []).length;
@@ -23,7 +21,7 @@ export default function ThinkingAnalysis({ turn }) {
     if (text.match(/done|finished|complete|working now|搞定|完成|好了|可以了/gi))
       stateIndicators.push({ state: "confident", label: "Done / Confident", tip: "Agent believes the task is complete", icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-400/5 border-emerald-400/20" });
 
-    const faults = [];
+    const faults: any[] = [];
     const readCount = (text.match(/read.*file|readFile|读取.*文件|Get-Content/gi) || []).length;
     if (readCount > 5) faults.push({ type: "loop", label: "Possible loop: reading files " + readCount + "x", severity: "high" });
     if (text.match(/tool.*(?:not found|doesn''t exist|unknown)|工具.*(?:找不到|不存在|未知)/gi))

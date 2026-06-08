@@ -149,11 +149,11 @@ function parseSession(raw: string): ParsedSession {
             reason: tu.reasoning_output_tokens || 0,
           };
           cur.ctxWindow = payload.model_context_window || 0;
-          R.tokenTotal.input_tokens += tu.input_tokens || 0;
-          R.tokenTotal.cached_input_tokens += tu.cached_input_tokens || 0;
-          R.tokenTotal.output_tokens += tu.output_tokens || 0;
-          R.tokenTotal.reasoning_output_tokens += tu.reasoning_output_tokens || 0;
-          R.tokenTotal.total_tokens += tu.total_tokens || 0;
+          R.tokenTotal.input_tokens = tu.input_tokens || 0;
+          R.tokenTotal.cached_input_tokens = tu.cached_input_tokens || 0;
+          R.tokenTotal.output_tokens = tu.output_tokens || 0;
+          R.tokenTotal.reasoning_output_tokens = tu.reasoning_output_tokens || 0;
+          R.tokenTotal.total_tokens = tu.total_tokens || 0;
           if (payload.model_context_window) R.ctxWindow = payload.model_context_window;
         }
       } else if (pt === "wasted_tokens") {

@@ -1,5 +1,4 @@
-// @ts-nocheck — JSX render component, types to be added gradually
-
+import type { ToolCall } from '../../../shared/types';
 import { useState, useMemo } from "react";
 import { Wrench, Clock, AlertCircle, ChevronRight, ChevronDown, Repeat } from "lucide-react";
 
@@ -11,13 +10,13 @@ export default function ToolCallTree({ turn, turnTools }) {
   const tree = useMemo(() => {
     const tools = turnTools || [];
     if (tools.length === 0) return { calls: [], byName: {}, patterns: [], totalCalls: 0, doneCount: 0, errorCount: 0, totalDur: 0 };
-    const byName = {};
+    const byName: Record<string, any[]> = {};
     for (const tc of tools) {
       if (!tc || !tc.name) continue;
       if (!byName[tc.name]) byName[tc.name] = [];
       byName[tc.name].push(tc);
     }
-    const patterns = [];
+    const patterns: any[] = [];
     for (const [name, calls] of Object.entries(byName)) {
       if (calls.length > 3) patterns.push({ type: "repeat", name, count: calls.length, severity: calls.length > 5 ? "high" : "medium" });
     }
@@ -85,7 +84,7 @@ export default function ToolCallTree({ turn, turnTools }) {
   );
 }
 
-function Stat({ label, value, icon, alert }) {
+function Stat({ label, value, icon, alert }: { label: any; value: any; icon: any; alert?: any }) {
   return (
     <div className={`flex items-center gap-1.5 text-[10px] ${alert ? "text-red-400" : ""}`} style={!alert ? { color: "var(--text-secondary)" } : {}}>
       {icon}

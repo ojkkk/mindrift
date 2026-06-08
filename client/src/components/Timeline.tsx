@@ -1,5 +1,3 @@
-// @ts-nocheck — JSX render component, types to be added gradually
-
 import { useState } from "react";
 import { Brain, Wrench, MessageCircle, ChevronDown, ChevronRight, AlertCircle, CheckCircle2, RotateCw, Terminal, FileText, Bot } from "lucide-react";
 
@@ -8,7 +6,7 @@ const fmtMs = (ms) => { if (!ms) return "\u2014"; if (ms < 1000) return ms + "ms
 export default function Timeline({ turn, turnTools }) {
   if (!turn) return <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "var(--text-muted)" }}>Select a turn</div>;
 
-  const events = [];
+  const events: any[] = [];
 
   // 1. User message
   if (turn.userMsg) {
