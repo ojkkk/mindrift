@@ -599,6 +599,42 @@ wss.on("connection", (ws: any) => {
   });
 });
 
+
+// ===== Webhook Engine =====
+function fireWebhooks(event: string, data: any) {
+  if (!appConfig.webhooks || appConfig.webhooks.length === 0) return;
+  for (const wh of appConfig.webhooks) {
+    if (wh.event !== event) continue;
+    try {
+      let payload = wh.payload || data;
+      // Template replacement
+      if (typeof payload === "object") {
+        payload = JSON.parse(JSON.stringify(payload).replace(/\{\{([^}]+)\}\}/g, (_: string, key: string) => {
+          const keys = key.trim().split(".");
+          let v = data;
+          for (const k of keys) { v = v?.[k]; }
+          return v ?? "";
+        }));
+      }
+      const http = require("http");
+      const https = require("https");
+      const u = new URL(wh.url);
+      const mod = u.protocol === "https:" ? https : http;
+      const body = JSON.stringify(payload);
+      const req = mod.request(u, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": String(Buffer.byteLength(body)) },
+        timeout: 5000,
+      }, (res: any) => {
+        console.log("webhook", wh.url, "->", res.statusCode);
+      });
+      req.on("error", (e: any) => console.error("webhook error:", e.message));
+      req.write(body);
+      req.end();
+    } catch (e: any) { console.error("webhook fail:", e.message); }
+  }
+}
+
 function broadcast(t: string, p: any) {
   const m = JSON.stringify({ type: t, payload: p });
   wss.clients.forEach((c: any) => { if (c.readyState === 1) c.send(m); });

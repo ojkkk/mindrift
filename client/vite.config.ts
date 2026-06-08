@@ -10,4 +10,14 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "../shared"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          recharts: ["recharts"],
+          "html-to-image": ["html-to-image"],
+        },
+      },
+    },
+  },
 });

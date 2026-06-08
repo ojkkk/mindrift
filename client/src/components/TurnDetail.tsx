@@ -7,6 +7,7 @@ import ThinkingAnalysis from "./ThinkingAnalysis";
 import TokenDonut from "./TokenDonut";
 import TurnTokenChart from "./TurnTokenChart";
 import SessionTrend from "./SessionTrend";
+import AnomalyInsights from "./AnomalyInsights";
 
 const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; if (n < 1000) return String(Math.round(n)); return String(n); };
 const fmtMs = (ms) => { if (!ms) return "\u2014"; if (ms < 1000) return ms + "ms"; return (ms / 1000).toFixed(1) + "s"; };
@@ -108,6 +109,7 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
 
       {/* Content area */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
+      <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{color:"var(--text-muted)"}} /></div>}>
         {activeView === "overview" && (
           <OverviewView turn={turn} turnTools={turnTools} planSteps={planSteps} planProgress={planProgress} allToolCalls={allToolCalls} turns={turns} sessionMeta={sessionMeta} />
         )}
@@ -115,8 +117,9 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
         {activeView === "tools" && <ToolCallTree turn={turn} turnTools={turnTools} />}
         {activeView === "thinking" && <ThinkingAnalysis turn={turn} />}
         {activeView === "raw" && <RawLogViewer sessionMeta={sessionMeta} />}
-      </div>
+      </Suspense>
     </div>
+  </div>
   );
 }
 
@@ -371,6 +374,7 @@ function TabBar({ activeView, setActiveView }) {
     { key: "tools", label: "Tools", icon: <Wrench size={10} /> },
     { key: "thinking", label: "Thinking", icon: <Brain size={10} /> },
     { key: "allturns", label: "All Turns", icon: <BarChart3 size={10} /> },
+    { key: "insights", label: "Insights", icon: <AlertTriangle size={10} /> },
     { key: "trends", label: "Trends", icon: <TrendingUp size={10} /> },
     { key: "raw", label: "Raw", icon: <FileText size={10} /> },
   ];
