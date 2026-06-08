@@ -133,11 +133,20 @@ function parseClaudeSession(raw: string, filePath: string): any {
 
     if (turns.length === 0) return null;
 
-    // Calculate wasted tokens
+    // Calculate wasted tokens and per-turn efficiency
     for (const t of turns) {
       if (t.aborted || t.compacted) {
         t.wastedTokens = (t.tokens.in || 0) + (t.tokens.out || 0) + (t.tokens.reason || 0);
       }
+      // Per-turn efficiency
+      const total = (t.tokens.in || 0) + (t.tokens.out || 0) + (t.tokens.reason || 0);
+      const allTools = toolCalls.filter((tc: any) => tc.turnN === t.n).length;
+      const doneTools = toolCalls.filter((tc: any) => tc.turnN === t.n && tc.done).length;
+      const toolSuccess = allTools > 0 ? Math.round((doneTools / allTools) * 100) : 100;
+      const contextUtil = ctxWindow > 0 ? Math.min(100, Math.round((total / ctxWindow) * 100)) : 0;
+      const wasteRatio = total > 0 ? Math.round(((t.wastedTokens || 0) / total) * 100) : 0;
+      const overall = Math.round(toolSuccess * 0.4 + (100 - wasteRatio) * 0.3 + Math.min(100, contextUtil * 0.8) * 0.2 + 50 * 0.1);
+      t.turnEfficiency = { tokenROI: 50, toolSuccess, contextUtil, wasteRatio, overall };
     }
 
     return {
@@ -208,6 +217,22 @@ function scanClaudeSessions(): any[] {
           if (toolCallCount > 50) anomalies.push("many-tools");
           if (turnCount > 30) anomalies.push("long-session");
 
+          const toolSuccessRate = toolCallCount > 0 ? 100 : 100;
+          const avgTpt = turnCount > 0 ? Math.round(totalTokens / turnCount / 1000) : 0;
+          let category = "";
+          const tpt = turnCount > 0 ? toolCallCount / turnCount : 0;
+          if (turnCount <= 1 && totalTokens < 5000) category = "";
+          else if (tpt < 2) category = "chat-heavy";
+          else if (tpt > 8) category = "tool-heavy";
+          else if (avgTpt < 20) category = "efficient";
+          else category = "balanced";
+
+          let effScore = 50;
+          if (turnCount > 0) {
+            const tptScore = Math.min(100, Math.max(0, 100 - Math.abs(tpt - 4) * 10));
+            effScore = Math.round(tptScore * 0.4 + toolSuccessRate * 0.2 + Math.min(100, (1 - (avgTpt / 100)) * 100) * 0.4);
+          }
+
           sessions.push({
             id: "claude-" + path.basename(fp, ".jsonl"),
             name: name || path.basename(fp, ".jsonl").slice(0, 30),
@@ -221,6 +246,10 @@ function scanClaudeSessions(): any[] {
             model,
             cwd: "",
             anomalies,
+            wastedTokens: 0,
+            toolSuccessRate,
+            efficiencyScore: effScore,
+            category,
           });
         } catch { /* skip */ }
       }

@@ -82,10 +82,34 @@ export interface Turn {
   done?: boolean; // runtime alias
   wastedTokens: number;
   wasteReasons: string[];
+  turnEfficiency?: { tokenROI: number; toolSuccess: number; contextUtil: number; wasteRatio: number; overall: number };
   // Client-side merged
   tTools?: ToolCall[];
 }
 
+
+// ---- Efficiency Scores ----
+export interface EfficiencyScores {
+  tokenROI: number;
+  toolSuccess: number;
+  contextUtil: number;
+  wasteRatio: number;
+  overall: number;
+}
+
+// ---- Session Patterns ----
+export type SessionCategory = "chat-heavy" | "tool-heavy" | "efficient" | "wasteful" | "balanced" | "";
+
+export interface SessionPatterns {
+  category: SessionCategory;
+  toolsPerTurn: number;
+  avgTokensPerTurn: number;
+  toolSuccessRate: number;
+  wasteRate: number;
+  planCompletionRate: number;
+  topTools: { name: string; count: number }[];
+  toolCombos: { pair: string; count: number }[];
+}
 // ---- Session (from scan) ----
 export interface SessionInfo {
   id: string;
@@ -93,12 +117,18 @@ export interface SessionInfo {
   filePath: string;
   source: string;
   startedAt: string;
+  lastModified?: string;
   turnCount: number;
   totalTokens: number;
   toolCallCount: number;
   model: string;
   cwd: string;
   anomalies: string[];
+  wastedTokens: number;
+  toolSuccessRate: number;
+  efficiencyScore: number;
+  category: SessionCategory;
+  patterns?: SessionPatterns;
 }
 
 // ---- Stats ----
@@ -108,6 +138,9 @@ export interface Stats {
   all: { tokens: number; turns: number; sessions: number };
   anomalies: number;
   efficiency: number;
+  efficiencyScores?: EfficiencyScores;
+  categoryCounts?: Record<string, number>;
+  patternInsights?: { totalWasted: number; avgToolSuccess: number; topTool: string };
 }
 
 // ---- WebSocket message types ----
@@ -164,4 +197,7 @@ export interface ParsedSession {
     total_tokens: number;
   };
   ctxWindow: number;
+  planProgress?: { completed: number; total: number };
+  efficiencyScores?: EfficiencyScores;
+  patterns?: SessionPatterns;
 }

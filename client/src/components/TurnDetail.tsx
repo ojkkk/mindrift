@@ -13,7 +13,7 @@ const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e3) return (n / 1e
 const fmtMs = (ms) => { if (!ms) return "\u2014"; if (ms < 1000) return ms + "ms"; return (ms / 1000).toFixed(1) + "s"; };
 const fmtDur = (sec) => { if (sec == null) return ""; if (sec < 60) return sec + "s"; const m = Math.floor(sec / 60); return m + "m " + (sec % 60) + "s"; };
 
-export default function TurnDetail({ turn, planSteps, planProgress, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls, sessions }) {
+export default function TurnDetail({ turn, planSteps, planProgress, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls, sessions, stats }) {
   const isDark = document.documentElement.className !== "light";
 
   if (!turn && activeView !== "allturns") {
@@ -117,6 +117,8 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
         {activeView === "tools" && <ToolCallTree turn={turn} turnTools={turnTools} />}
         {activeView === "thinking" && <ThinkingAnalysis turn={turn} />}
         {activeView === "raw" && <RawLogViewer sessionMeta={sessionMeta} />}
+        {activeView === "insights" && <AnomalyInsights sessions={sessions} stats={stats} />}
+        {activeView === "trends" && <SessionTrend sessions={sessions} />}
       </Suspense>
     </div>
   </div>

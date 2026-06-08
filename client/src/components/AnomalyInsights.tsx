@@ -4,7 +4,7 @@ import type { SessionInfo } from "../../../shared/types";
 
 const fmt = (n: number) => { if (!n && n !== 0) return "0"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; return String(Math.round(n)); };
 
-export default function AnomalyInsights({ sessions }: { sessions: SessionInfo[] }) {
+export default function AnomalyInsights({ sessions, stats }: { sessions: SessionInfo[]; stats?: any }) {
   const insights = useMemo(() => {
     if (!sessions || sessions.length === 0) return null;
 
@@ -87,6 +87,69 @@ export default function AnomalyInsights({ sessions }: { sessions: SessionInfo[] 
         <MiniStat icon={<Clock size={10} className="text-amber-400" />} label="Days" value={String(daysActive)} />
       </div>
 
+      {/* Efficiency Breakdown */}
+      {stats?.efficiencyScores && (
+        <div>
+          <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Efficiency Score</div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="text-2xl font-bold font-mono" style={{
+              color: stats.efficiencyScores.overall >= 70 ? "var(--accent-green)" : stats.efficiencyScores.overall >= 40 ? "var(--accent-amber)" : "var(--accent-red)"
+            }}>{stats.efficiencyScores.overall}%</div>
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-card)" }}>
+              <div className="h-full rounded-full transition-all duration-500" style={{
+                width: stats.efficiencyScores.overall + "%",
+                background: stats.efficiencyScores.overall >= 70 ? "linear-gradient(90deg, #22d3ee, #10b981)" : stats.efficiencyScores.overall >= 40 ? "linear-gradient(90deg, #f59e0b, #fbbf24)" : "linear-gradient(90deg, #ef4444, #f87171)"
+              }} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <EffMini label="Tool Success" value={stats.efficiencyScores.toolSuccess} />
+            <EffMini label="Token ROI" value={stats.efficiencyScores.tokenROI} />
+            <EffMini label="Context Util" value={stats.efficiencyScores.contextUtil} />
+            <EffMini label="Waste Ratio" value={100 - stats.efficiencyScores.wasteRatio} invert />
+          </div>
+        </div>
+      )}
+
+      {/* Session Categories */}
+      {stats?.categoryCounts && Object.keys(stats.categoryCounts).length > 0 && (
+        <div>
+          <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Session Types</div>
+          <div className="space-y-1">
+            {Object.entries(stats.categoryCounts as Record<string, number>).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
+              <div key={cat} className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "var(--bg-card)" }}>
+                <div className="flex items-center gap-2">
+                  <CategoryDot category={cat} />
+                  <span className="text-[9px]" style={{ color: "var(--text-secondary)" }}>{fmtCategory(cat)}</span>
+                </div>
+                <span className="text-[9px] font-mono" style={{ color: "var(--text-muted)" }}>{count as number}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pattern Insights */}
+      {stats?.patternInsights && (stats.patternInsights.totalWasted > 0 || stats.patternInsights.topTool) && (
+        <div>
+          <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Pattern Insights</div>
+          <div className="space-y-1">
+            {stats.patternInsights.totalWasted > 0 && (
+              <div className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "var(--bg-card)" }}>
+                <span className="text-[9px]" style={{ color: "var(--text-secondary)" }}>Total Wasted</span>
+                <span className="text-[9px] font-mono text-red-400">{fmt(stats.patternInsights.totalWasted)} tokens</span>
+              </div>
+            )}
+            {stats.patternInsights.avgToolSuccess != null && (
+              <div className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "var(--bg-card)" }}>
+                <span className="text-[9px]" style={{ color: "var(--text-secondary)" }}>Avg Tool Success</span>
+                <span className="text-[9px] font-mono" style={{ color: stats.patternInsights.avgToolSuccess >= 80 ? "var(--accent-green)" : "var(--accent-amber)" }}>{stats.patternInsights.avgToolSuccess}%</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Anomaly Breakdown */}
       {Object.keys(counts).length > 0 && (
         <div>
@@ -140,6 +203,34 @@ export default function AnomalyInsights({ sessions }: { sessions: SessionInfo[] 
       )}
     </div>
   );
+}
+
+function EffMini({ label, value, invert }: { label: string; value: number; invert?: boolean }) {
+  const color = !invert
+    ? value >= 70 ? "var(--accent-green)" : value >= 40 ? "var(--accent-amber)" : "var(--accent-red)"
+    : value >= 70 ? "var(--accent-green)" : value >= 40 ? "var(--accent-amber)" : "var(--accent-red)";
+  return (
+    <div className="flex items-center justify-between px-2 py-1 rounded" style={{ background: "var(--bg-card)" }}>
+      <span className="text-[8px]" style={{ color: "var(--text-muted)" }}>{label}</span>
+      <span className="text-[9px] font-mono font-semibold" style={{ color }}>{value}%</span>
+    </div>
+  );
+}
+
+function CategoryDot({ category }: { category: string }) {
+  const colors: Record<string, string> = {
+    "chat-heavy": "#22d3ee", "tool-heavy": "#a78bfa", "efficient": "#10b981",
+    "wasteful": "#ef4444", "balanced": "#f59e0b",
+  };
+  return <div className="w-2 h-2 rounded-full" style={{ background: colors[category] || "#6b7280" }} />;
+}
+
+function fmtCategory(cat: string): string {
+  const m: Record<string, string> = {
+    "chat-heavy": "Chat Heavy", "tool-heavy": "Tool Heavy",
+    "efficient": "Efficient", "wasteful": "Wasteful", "balanced": "Balanced",
+  };
+  return m[cat] || cat;
 }
 
 function MiniStat({ icon, label, value }: { icon: any; label: string; value: string }) {

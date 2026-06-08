@@ -335,6 +335,19 @@ function parseSession(raw: string): ParsedSession {
       };
     }
   }
+  // Calculate per-turn efficiency scores
+  for (const t of R.turns) {
+    const total = (t.tokens.in || 0) + (t.tokens.out || 0) + (t.tokens.reason || 0);
+    const ctxWindow = t.ctxWindow || R.ctxWindow || 128000;
+    const doneTools = R.toolCalls.filter((tc: ToolCall) => tc.turnN === t.n && tc.done).length;
+    const allTools = R.toolCalls.filter((tc: ToolCall) => tc.turnN === t.n).length;
+    const toolSuccess = allTools > 0 ? Math.round((doneTools / allTools) * 100) : 100;
+    const contextUtil = ctxWindow > 0 ? Math.min(100, Math.round((total / ctxWindow) * 100)) : 0;
+    const wasteRatio = total > 0 ? Math.round(((t.wastedTokens || 0) / total) * 100) : 0;
+    const tokenROI = total > 0 ? Math.min(100, Math.round((doneTools / Math.max(1, total / 1000)) * 50)) : 50;
+    const overall = Math.round(toolSuccess * 0.4 + (100 - wasteRatio) * 0.3 + Math.min(100, contextUtil * 0.8) * 0.2 + tokenROI * 0.1);
+    t.turnEfficiency = { tokenROI, toolSuccess, contextUtil, wasteRatio, overall };
+  }
   return R;
 }
 
@@ -379,6 +392,9 @@ function scanAllSessions(): SessionInfo[] {
             const t = (payload.info?.total_token_usage || payload.total_token_usage).total_tokens || 0; if (t > totalTokens) totalTokens = t;
           }
           if (type === "response_item" && payload.type === "function_call") { toolCallCount++; }
+          if (type === "response_item" && payload.type === "function_call_output" && !payload.error) { doneToolCount++; }
+          if (type === "turn_aborted") { abortedTurnCount++; }
+          if (type === "event_msg" && payload.type === "compacted_context") { compactedTurnCount++; }
           if (type === "event_msg" && payload.type === "user_message" && !name) {
             name = extractFirstLine(payload.message || "");
           }
@@ -403,10 +419,47 @@ function scanAllSessions(): SessionInfo[] {
           model: meta?.model_provider || "custom",
           cwd: meta?.cwd || "",
           anomalies,
+          wastedTokens: 0,
+          toolSuccessRate: toolCallCount > 0 ? Math.round((doneToolCount / toolCallCount) * 100) : 100,
+          efficiencyScore: 50,
+          category: "",
         });
       } catch { /* skip corrupt files */ }
     }
   } catch { /* skip */ }
+  // Post-process: categorize each session
+  for (const s of sessions) {
+    const tpt = s.turnCount > 0 ? s.toolCallCount / s.turnCount : 0;
+    if (s.turnCount <= 1 && s.totalTokens < 5000) s.category = "";
+    else if (tpt < 2) s.category = "chat-heavy";
+    else if (tpt > 8) s.category = "tool-heavy";
+    else if (s.toolSuccessRate >= 90 && s.turnCount > 0 && s.totalTokens / s.turnCount < 20000) s.category = "efficient";
+    else if (s.anomalies && s.anomalies.length > 0) s.category = "wasteful";
+    else s.category = "balanced";
+    // Efficiency score
+    let eff = 50;
+    if (s.turnCount > 0) {
+      const tptN = s.toolCallCount / s.turnCount;
+      const tptScore = Math.min(100, Math.max(0, 100 - Math.abs(tptN - 4) * 10));
+      const successScore = s.toolSuccessRate || 100;
+      eff = Math.round(tptScore * 0.2 + successScore * 0.3 + 50 * 0.3 + 50 * 0.2);
+    }
+    s.efficiencyScore = eff;
+  }
+  // Merge Claude Code sessions
+  try {
+    const claude = scanClaudeSessions();
+    if (claude && claude.length > 0) {
+      for (const cs of claude) {
+        if (!sessions.some((s: SessionInfo) => s.id === cs.id)) {
+          sessions.push(cs);
+        }
+      }
+      sessions.sort((a: SessionInfo, b: SessionInfo) => 
+        new Date(b.lastModified || b.startedAt).getTime() - new Date(a.lastModified || a.startedAt).getTime()
+      );
+    }
+  } catch { /* Claude not available */ }
   return sessions;
 }
 
@@ -416,15 +469,33 @@ function computeStats(sessions: SessionInfo[]): Stats {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
   let todayTokens = 0, todaySessions = 0, monthTokens = 0, monthSessions = 0;
-  let totalAllTokens = 0, totalAllTurns = 0;
+  let totalAllTokens = 0, totalAllTurns = 0, totalAllTools = 0, totalWasted = 0;
+  let totalDoneTools = 0;
 
   for (const s of sessions) {
     const ts = new Date(s.startedAt).getTime();
     const mod = s.lastModified ? new Date(s.lastModified).getTime() : ts;
     totalAllTokens += s.totalTokens;
     totalAllTurns += s.turnCount;
+    totalAllTools += s.toolCallCount;
+    totalWasted += s.wastedTokens || 0;
+    totalDoneTools += Math.round((s.toolCallCount || 0) * (s.toolSuccessRate || 100) / 100);
     if (mod >= todayStart) { todayTokens += s.totalTokens; todaySessions++; }
     if (ts >= monthStart) { monthTokens += s.totalTokens; monthSessions++; }
+  }
+
+  const avgTpt = totalAllTurns > 0 ? Math.round(totalAllTokens / totalAllTurns / 1000) : 0;
+  const toolSuccessRate = totalAllTools > 0 ? Math.round((totalDoneTools / totalAllTools) * 100) : 100;
+  const wasteRatio = totalAllTokens > 0 ? Math.round((totalWasted / totalAllTokens) * 100) : 0;
+  const contextUtil = totalAllTurns > 0 ? Math.min(100, Math.round((totalAllTools * 2000 / Math.max(1, totalAllTokens)) * 50 + 50)) : 50;
+  const tokenROI = totalAllTokens > 0 ? Math.min(100, Math.round((totalAllTurns * 1000 / totalAllTokens) * 100)) : 50;
+  const overall = Math.round(
+    toolSuccessRate * 0.3 + (100 - Math.min(100, wasteRatio)) * 0.25 + contextUtil * 0.25 + Math.min(100, tokenROI) * 0.2
+  );
+
+  const catCounts: Record<string, number> = {};
+  for (const s of sessions) {
+    if (s.category) catCounts[s.category] = (catCounts[s.category] || 0) + 1;
   }
 
   return {
@@ -432,7 +503,10 @@ function computeStats(sessions: SessionInfo[]): Stats {
     month: { tokens: monthTokens, sessions: monthSessions },
     all: { tokens: totalAllTokens, turns: totalAllTurns, sessions: sessions.length },
     anomalies: sessions.filter((s: SessionInfo) => s.anomalies && s.anomalies.length > 0).length,
-    efficiency: totalAllTurns > 0 ? Math.round(totalAllTokens / totalAllTurns / 1000) : 0,
+    efficiency: avgTpt,
+    efficiencyScores: { tokenROI, toolSuccess: toolSuccessRate, contextUtil, wasteRatio, overall },
+    categoryCounts: catCounts,
+    patternInsights: { totalWasted: totalWasted, avgToolSuccess: toolSuccessRate, topTool: "" },
   };
 }
 

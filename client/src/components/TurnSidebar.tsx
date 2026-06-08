@@ -88,6 +88,15 @@ export default function TurnSidebar({ turns, selectedTurnN, onSelect }: { turns:
                     </span>
                   </span>
                 )}
+                {turn.turnEfficiency && turn.turnEfficiency.overall > 0 && (
+                  <span className="flex items-center gap-0.5 ml-auto px-1 rounded" style={{
+                    background: turn.turnEfficiency.overall >= 70 ? "rgba(16,185,129,0.1)" : turn.turnEfficiency.overall >= 40 ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)",
+                    color: turn.turnEfficiency.overall >= 70 ? "var(--accent-green)" : turn.turnEfficiency.overall >= 40 ? "var(--accent-amber)" : "var(--accent-red)",
+                    fontSize: "7px"
+                  }}>
+                    {turn.turnEfficiency.overall}%
+                  </span>
+                )}
               </div>
             </button>
           );

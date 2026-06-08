@@ -114,7 +114,7 @@ const App: React.FC = () => {
           turn={selectedTurn} planSteps={planSteps} planProgress={planProgress} turnTools={selectedTurnTools} sessions={sessions}
           activeView={activeView} setActiveView={setActiveView} sessionMeta={sessionMeta}
           turns={turns} selectedTurnN={selectedTurnN} setSelectedTurnN={setSelectedTurnN}
-          allToolCalls={allToolCalls}
+          allToolCalls={allToolCalls} stats={stats}
         />
       </div>{showWizard && (
         <div className="fixed top-10 right-4 w-72 rounded-xl border shadow-2xl z-50 p-4" style={{background:"var(--bg-surface)",borderColor:"var(--border-strong)",boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>
