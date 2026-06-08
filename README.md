@@ -2,6 +2,8 @@
   <h1 align="center">🧠 Mindrift</h1>
   <p align="center"><strong>Monitor every thought, token, and tool call. Zero instrumentation.</strong></p>
   <p align="center">
+    <a href="README.md"><img src="https://img.shields.io/badge/lang-EN-red" alt="English"></a>
+    <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/lang-中文-blue" alt="Chinese"></a>
     <img src="https://img.shields.io/badge/status-active-brightgreen" alt="Status">
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
     <img src="https://img.shields.io/badge/platform-Codex%20|%20Claude%20Code%20|%20Cursor-cyan" alt="Platform">
