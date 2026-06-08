@@ -1,4 +1,7 @@
 node_modules/
 dist/
 .DS_Store
-*.logdocs/
+*.log
+docs/
+_fix_types.js
+server/server.log
