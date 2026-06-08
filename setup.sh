@@ -1,61 +1,107 @@
 #!/usr/bin/env bash
-# Mindrift — One-Click Install & Start (macOS / Linux)
-# Run: bash setup.sh
-
+# ==============================================
+#  Mindrift — One-Click Install & Start (Unix)
+#  Run: bash setup.sh
+# ==============================================
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PORT=3344
 
+# Colors
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; CYAN='\033[0;36m'; GRAY='\033[0;90m'; NC='\033[0m'
+
+step() { echo -e "\n${YELLOW}[$1/5] $2${NC}"; }
+ok()   { echo -e "  ${GREEN}$1${NC}"; }
+err()  { echo -e "  ${RED}$1${NC}"; }
+
 echo ""
-echo -e "\033[36m╔══════════════════════════════════════════╗\033[0m"
-echo -e "\033[36m║       Mindrift — Agent Observability     ║\033[0m"
-echo -e "\033[36m║         One-Click Setup v1.0             ║\033[0m"
-echo -e "\033[36m╚══════════════════════════════════════════╝\033[0m"
+echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║     Mindrift — AI Agent Dashboard        ║${NC}"
+echo -e "${CYAN}║     One-Click Setup                       ║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
 echo ""
 
 # 1. Check Node.js
-echo -e "\033[33m[1/5] Checking Node.js...\033[0m"
+step 1 "Checking Node.js..."
 if ! command -v node &>/dev/null; then
-    echo -e "\033[31m  ERROR: Node.js is required. Install from https://nodejs.org\033[0m"
+    err "Node.js not found"
+    echo ""
+    echo "  Install Node.js: https://nodejs.org"
+    echo "  Or: brew install node  /  apt install nodejs"
     exit 1
 fi
-echo -e "\033[32m  Node.js $(node --version)\033[0m"
+ok "Node.js $(node --version)"
 
-# 2. Install server dependencies
-echo -e "\033[33m[2/5] Installing server dependencies...\033[0m"
-cd "$ROOT/server" && npm install --silent
-echo -e "\033[32m  Server dependencies installed\033[0m"
+# 2. Install dependencies
+NEED_INSTALL=false
+[ ! -d "$ROOT/server/node_modules" ] && NEED_INSTALL=true
+[ ! -d "$ROOT/client/node_modules" ] && NEED_INSTALL=true
 
-# 3. Install client dependencies
-echo -e "\033[33m[3/5] Installing client dependencies...\033[0m"
-cd "$ROOT/client" && npm install --silent
-echo -e "\033[32m  Client dependencies installed\033[0m"
+if $NEED_INSTALL; then
+    step 2 "Installing dependencies (first run)..."
+    echo "  This may take 1-2 minutes..."
 
-# 4. Build frontend
-echo -e "\033[33m[4/5] Building frontend...\033[0m"
-cd "$ROOT/client" && npx vite build --logLevel error
-echo -e "\033[32m  Frontend built successfully\033[0m"
+    cd "$ROOT/server"
+    npm install --silent 2>/dev/null || npm install 2>/dev/null
+    ok "Server packages ready"
 
-# 5. Start server
-echo -e "\033[33m[5/5] Starting Mindrift server...\033[0m"
+    cd "$ROOT/client"
+    npm install --silent 2>/dev/null || npm install 2>/dev/null
+    ok "Client packages ready"
 
-# Check if already running
-if lsof -i :$PORT &>/dev/null 2>&1 || netstat -an 2>/dev/null | grep -q ":$PORT.*LISTEN"; then
-    echo -e "\033[33m  Port $PORT is already in use. Opening browser...\033[0m"
-    open "http://localhost:$PORT" 2>/dev/null || xdg-open "http://localhost:$PORT" 2>/dev/null
-    exit 0
+    cd "$ROOT"
+else
+    step 2 "Dependencies already installed"
+    ok "Skipping"
 fi
 
-# Start in background
-cd "$ROOT/server"
-nohup npx tsx index.ts > /tmp/mindrift.log 2>&1 &
-sleep 3
+# 3. Build frontend
+if [ ! -f "$ROOT/client/dist/index.html" ]; then
+    step 3 "Building frontend..."
+    cd "$ROOT/client"
+    npx vite build 2>/dev/null || {
+        rm -rf node_modules/.vite 2>/dev/null
+        npx vite build
+    }
+    ok "Frontend built"
+    cd "$ROOT"
+else
+    step 3 "Frontend already built"
+    ok "Skipping"
+fi
+
+# 4. Start server
+step 4 "Starting Mindrift server..."
+
+# Check if already running
+if lsof -i ":$PORT" &>/dev/null 2>&1 || netstat -an 2>/dev/null | grep -q ":$PORT.*LISTEN"; then
+    ok "Already running on port $PORT"
+else
+    cd "$ROOT/server"
+    nohup npx tsx index.ts > /tmp/mindrift.log 2>&1 &
+    cd "$ROOT"
+
+    echo "  Waiting for server to start..."
+    for i in $(seq 1 15); do
+        sleep 1
+        if lsof -i ":$PORT" &>/dev/null 2>&1; then break; fi
+        if netstat -an 2>/dev/null | grep -q ":$PORT.*LISTEN"; then break; fi
+    done
+fi
+
+# 5. Open browser
+step 5 "Opening dashboard..."
+if command -v open &>/dev/null; then
+    open "http://localhost:$PORT"
+elif command -v xdg-open &>/dev/null; then
+    xdg-open "http://localhost:$PORT"
+fi
 
 echo ""
-echo -e "\033[32m  Mindrift is running!\033[0m"
-echo -e "\033[36m  Dashboard: http://localhost:$PORT\033[0m"
-echo -e "\033[36m  Logs: /tmp/mindrift.log\033[0m"
+echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║   Mindrift is running!                  ║${NC}"
+echo -e "${CYAN}║   Dashboard: http://localhost:$PORT       ║${NC}"
+echo -e "${CYAN}║   Logs: /tmp/mindrift.log               ║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
 echo ""
-
-# Open browser
-open "http://localhost:$PORT" 2>/dev/null || xdg-open "http://localhost:$PORT" 2>/dev/null
+echo -e "${GRAY}Tip: Close this terminal. Mindrift runs in background.${NC}"

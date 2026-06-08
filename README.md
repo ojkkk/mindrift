@@ -62,24 +62,37 @@ Mindrift is a real-time observability dashboard for AI coding agents. It reads y
 - **Keyboard Navigation** — `↑↓` / `jk` to navigate turns, `Esc` to close views
 - **MCP Server** — Standalone MCP server with 3 tools and 2 resources for AI-to-AI communication
 
-## Quick Start (One Command)
+## Quick Start (One Click)
 
-### Windows
+### Windows — Double-click `start.bat`
+
+> **That's it.** No terminal. No commands. Just double-click.
+
+The script automatically:
+1. Checks for Node.js (prompts you to install if missing)
+2. Installs all dependencies (first run only)
+3. Builds the frontend (first run only)
+4. Starts the server on port 3344
+5. Opens your browser to the dashboard
+
+**Subsequent runs are instant** — dependencies and build are skipped if already done.
+
+> 💡 **Pro tip**: Pin `start.bat` to your taskbar or desktop for one-click daily use.
+
+### Alternative: Terminal
 ```powershell
+# Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
 
-### macOS / Linux
 ```bash
+# macOS / Linux
 bash setup.sh
 ```
 
-That's it. The script will:
-1. Check for Node.js
-2. Install all dependencies
-3. Build the frontend
-4. Start the server on port 3344
-5. Open your browser to the dashboard
+### Requirements
+- **Node.js 18+** — [Download](https://nodejs.org) (LTS version recommended)
+- No other dependencies. No Python. No Docker.
 
 ### Auto-start with Codex
 
