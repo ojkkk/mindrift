@@ -315,9 +315,17 @@ function parseSession(raw: string): ParsedSession {
     completed: R.planSteps.filter((s: any) => s.status === "completed").length,
     total: R.planSteps.length
   };
-  // Mark last turn finished and clean up plan steps
+  // Mark last turn finished ONLY for stale/inactive sessions (file not modified in 60s)
+  // For live sessions being actively written, leave the last turn as-is
   const last = R.turns[tn - 1];
   if (last && !last.finishedAt && last.agentMessages.length > 0) {
+    // Check if this is a stale session (not modified recently)
+    const isStale = currentSessionFile
+      ? (Date.now() - fs.statSync(currentSessionFile).mtimeMs > 60000)
+      : true;
+    // Also check: if last turn has turn_context after it (new turn started), it's done
+    const hasNextTurn = R.turns.some((t: Turn) => t.n > last.n);
+    if (isStale || hasNextTurn) {
     last.finishedAt = last.agentMessages[last.agentMessages.length - 1].ts;
     if (last.startedAt) {
       last.duration = Math.round((new Date(last.finishedAt).getTime() - new Date(last.startedAt).getTime()) / 1000);
@@ -335,6 +343,7 @@ function parseSession(raw: string): ParsedSession {
         total: R.planSteps.length
       };
     }
+    } // closes isStale || hasNextTurn
   }
   // Calculate per-turn efficiency scores
   for (const t of R.turns) {
