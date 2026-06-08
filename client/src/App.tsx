@@ -4,7 +4,8 @@ import SessionFilter from "./components/SessionFilter";
 import SessionBar from "./components/SessionBar";
 import TurnSidebar from "./components/TurnSidebar";
 import TurnDetail from "./components/TurnDetail";
-import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, Cpu, UserCircle, HelpCircle, ExternalLink, Settings, CheckCircle } from "lucide-react";
+import ShareCard from "./components/ShareCard";
+import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2 } from "lucide-react";
 
 const fmt = (n: number) => {
   if (!n && n !== 0) return "0";
@@ -22,6 +23,7 @@ const App: React.FC = () => {
   } = useAgentScope();
 
   const [filteredSessions, setFilteredSessions] = useState<any>(null); const [showWizard, setShowWizard] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("mindrift-theme") || "dark");
   const displaySessions = filteredSessions || sessions;
 
@@ -38,6 +40,7 @@ const App: React.FC = () => {
   const allSes = stats?.all?.sessions || 0;
   const allTurns = stats?.all?.turns || 0;
   const anomalies = stats?.anomalies || 0;
+  const currentSession = sessions.find((s: any) => s.id === currentSessionId) || null;
   const efficiency = stats?.efficiency || 0;
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg-deep)", color: "var(--text-primary)" }}>
@@ -156,6 +159,7 @@ const App: React.FC = () => {
         <span>{allSes} sessions · {allTurns} turns · {fmt(sessions.reduce((s, x) => s + (x.totalTokens || 0), 0))} total tokens</span>
         <span>{connected ? "ws connected" : "ws disconnected"}</span>
       </footer>
+      {showShare && <ShareCard session={currentSession || sessions[0]} turns={turns} stats={stats} onClose={() => setShowShare(false)} />}
     </div>
   );
 }
