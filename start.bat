@@ -1,147 +1,118 @@
 @echo off
-chcp 65001 >nul 2>nul
+cd /d "%~dp0"
 title Mindrift
 
-:: ==============================================
-::  Mindrift ? Double-click to start
-::  No terminal, no commands, just double-click
-:: ==============================================
-
-cd /d "%~dp0"
-
 echo.
-echo ????????????????????????????????????????????
-echo ?     Mindrift ? AI Agent Dashboard        ?
-echo ?     ???? ? ???? ? ????        ?
-echo ????????????????????????????????????????????
+echo ========================================
+echo   Mindrift - AI Agent Dashboard
+echo ========================================
 echo.
 
-:: ?? Check Node.js ??????????????????????????
+:: --- Check Node.js ---
 echo [1/5] Checking Node.js...
 
-node --version >nul 2>nul
+REM Try to run node directly
+node -e "process.exit(0)" >nul 2>nul
 if %errorlevel% neq 0 (
     echo.
-    echo   [ERROR] Node.js not found!
+    echo *** ERROR: Node.js is not installed or not in PATH ***
     echo.
-    echo   Please install Node.js first:
-    echo   https://nodejs.org
-    echo   (Download LTS version, install, then double-click start.bat again)
+    echo Please install Node.js from https://nodejs.org
+    echo Then double-click start.bat again.
     echo.
     pause
     exit /b 1
 )
+for /f "tokens=*" %%v in ('node -e "console.log(process.version)"') do echo   Node.js %%v found
 
-for /f "tokens=*" %%v in ('node --version') do echo   Node.js %%v - OK
+:: --- Install ---
+set NEED_BUILD=0
+if not exist "server\node_modules\" set NEED_BUILD=1
+if not exist "client\node_modules\" set NEED_BUILD=1
 
-:: ?? Install (first run only) ???????????????
-if not exist "server\node_modules\" goto INSTALL
-if not exist "client\node_modules\" goto INSTALL
-if not exist "client\dist\index.html" goto BUILD
-goto START
-
-:INSTALL
-echo.
-echo [2/5] Installing packages (first run ~1-2 min)...
-
-echo   Installing server packages...
-cd /d "%~dp0server"
-call npm install 2>nul
-if %errorlevel% neq 0 (
-    echo   Retrying with verbose output...
+if %NEED_BUILD% equ 1 (
+    echo.
+    echo [2/5] Installing dependencies (first run)...
+    echo   This takes 1-2 minutes.
+    echo.
+    cd server
     call npm install
     if %errorlevel% neq 0 (
-        echo   [ERROR] Server install failed. Check your internet connection.
-        cd /d "%~dp0"
+        echo *** Install failed! Check your internet. ***
+        cd ..
         pause
         exit /b 1
     )
-)
-echo   Server packages - OK
-
-echo   Installing client packages...
-cd /d "%~dp0client"
-call npm install 2>nul
-if %errorlevel% neq 0 (
+    cd ..\client
     call npm install
     if %errorlevel% neq 0 (
-        echo   [ERROR] Client install failed.
-        cd /d "%~dp0"
+        echo *** Install failed! ***
+        cd ..
         pause
         exit /b 1
     )
+    cd ..
+    echo   Packages installed.
 )
-echo   Client packages - OK
-cd /d "%~dp0"
 
-:: ?? Build (first run only) ?????????????????
-:BUILD
-echo.
-echo [3/5] Building frontend...
+:: --- Build ---
+if not exist "client\dist\index.html" set NEED_BUILD=1
 
-cd /d "%~dp0client"
-call npx vite build 2>nul
-if %errorlevel% neq 0 (
-    echo   Retrying after cache clear...
-    if exist "node_modules\.vite\" rmdir /s /q "node_modules\.vite" 2>nul
+if %NEED_BUILD% equ 1 (
+    echo.
+    echo [3/5] Building frontend...
+    cd client
     call npx vite build
     if %errorlevel% neq 0 (
-        echo   [ERROR] Build failed.
-        cd /d "%~dp0"
+        echo *** Build failed! ***
+        cd ..
         pause
         exit /b 1
     )
+    cd ..
+    echo   Build done.
 )
-echo   Frontend built - OK
-cd /d "%~dp0"
 
-:: ?? Start server ???????????????????????????
-:START
+:: --- Start ---
 echo.
-echo [4/5] Starting Mindrift server...
+echo [4/5] Starting server...
 
-set PORT=3344
-
-netstat -ano 2>nul | findstr ":%PORT% " | findstr "LISTENING" >nul
+netstat -ano 2>nul | find ":3344" | find "LISTENING" >nul
 if %errorlevel% equ 0 (
-    echo   Already running on port %PORT%
+    echo   Server already running on port 3344.
     goto OPEN
 )
 
-cd /d "%~dp0server"
-start "" /min cmd /c "npx tsx index.ts"
-cd /d "%~dp0"
+cd server
+start "Mindrift" /min cmd /c "npx tsx index.ts"
+cd ..
 
-echo   Waiting for server...
-set /a TRIES=0
-:WAITLOOP
+echo   Waiting for server to start...
+set COUNT=0
+:WAIT
 timeout /t 1 /nobreak >nul
-netstat -ano 2>nul | findstr ":%PORT% " | findstr "LISTENING" >nul
+netstat -ano 2>nul | find ":3344" | find "LISTENING" >nul
 if %errorlevel% equ 0 goto OPEN
-set /a TRIES+=1
-if %TRIES% lss 15 goto WAITLOOP
+set /a COUNT=%COUNT%+1
+if %COUNT% lss 15 goto WAIT
 
-echo   [WARN] Server startup is slow or failed.
-echo   Try manually: cd server ^&^& npx tsx index.ts
+echo   Server didn't start in 15s.
+echo   Try: cd server ^& npx tsx index.ts
 pause
 exit /b 1
 
-:: ?? Open browser ???????????????????????????
+:: --- Open ---
 :OPEN
 echo.
-echo [5/5] Opening dashboard...
-start "" http://localhost:%PORT%
+echo [5/5] Opening http://localhost:3344 ...
+start "" http://localhost:3344
 
 echo.
-echo ????????????????????????????????????????????
-echo ?                                          ?
-echo ?   Mindrift is running!                   ?
-echo ?   Dashboard: http://localhost:%PORT%      ?
-echo ?                                          ?
-echo ?   You can close this window.             ?
-echo ?   Mindrift runs in the background.       ?
-echo ?                                          ?
-echo ????????????????????????????????????????????
+echo ========================================
+echo   Mindrift is running!
+echo   http://localhost:3344
 echo.
-
+echo   Close this window anytime.
+echo ========================================
+echo.
 pause
