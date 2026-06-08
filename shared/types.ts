@@ -6,7 +6,8 @@ export interface SessionMeta {
   cwd: string;
   model: string;
   cliVersion?: string;
-  startedAt: string; // ISO timestamp
+  startedAt: string;
+  lastModified?: string; // ISO timestamp
 }
 
 // ---- Token Metrics ----

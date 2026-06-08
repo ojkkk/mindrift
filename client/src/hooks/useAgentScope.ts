@@ -9,6 +9,7 @@ export function useAgentScope() {
   const [sessionMeta, setSessionMeta] = useState<SessionMeta | null>(null);
   const [selectedTurnN, setSelectedTurnN] = useState<number | null>(null);
   const [planSteps, setPlanSteps] = useState<PlanStep[]>([]);
+  const [planProgress, setPlanProgress] = useState<{ completed: number; total: number }>({ completed: 0, total: 0 });
   const [loading, setLoading] = useState<boolean>(false);
   const [allToolCalls, setAllToolCalls] = useState<ToolCall[]>([]);
   const [stats, setStats] = useState<Stats>({ today: { tokens: 0, sessions: 0 }, month: { tokens: 0, sessions: 0 }, all: { tokens: 0, turns: 0, sessions: 0 }, anomalies: 0 });
@@ -38,6 +39,7 @@ export function useAgentScope() {
               setSessionMeta(ls.meta);
               setTurns(ls.turns || []);
               setPlanSteps(ls.planSteps || []);
+              if (ls.planProgress) setPlanProgress(ls.planProgress);
               const tcs: ToolCall[] = [];
               for (const t of ls.turns || []) {
                 for (const tc of t.tTools || []) tcs.push({ ...tc, turnN: t.n } as ToolCall);
@@ -56,6 +58,7 @@ export function useAgentScope() {
             const newTurns: Turn[] = fs.turns || [];
             setTurns(newTurns);
             setPlanSteps(fs.planSteps || []);
+            if (fs.planProgress) setPlanProgress(fs.planProgress);
             const tcs: ToolCall[] = [];
             for (const t of newTurns) {
               for (const tc of t.tTools || []) tcs.push({ ...tc, turnN: t.n } as ToolCall);
@@ -81,6 +84,7 @@ export function useAgentScope() {
             const loadedTurns: Turn[] = sl.turns || [];
             setTurns(loadedTurns);
             setPlanSteps(sl.planSteps || []);
+            if (sl.planProgress) setPlanProgress(sl.planProgress);
             setLoading(false);
             const tcs: ToolCall[] = [];
             for (const t of loadedTurns) {
@@ -156,7 +160,7 @@ export function useAgentScope() {
   return {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN,
-    selectedTurn, selectedTurnTools, planSteps,
+    selectedTurn, selectedTurnTools, planSteps, planProgress,
     stats, activeView, setActiveView, allToolCalls,
   };
 }

@@ -11,7 +11,7 @@ const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e3) return (n / 1e
 const fmtMs = (ms) => { if (!ms) return "\u2014"; if (ms < 1000) return ms + "ms"; return (ms / 1000).toFixed(1) + "s"; };
 const fmtDur = (sec) => { if (sec == null) return ""; if (sec < 60) return sec + "s"; const m = Math.floor(sec / 60); return m + "m " + (sec % 60) + "s"; };
 
-export default function TurnDetail({ turn, planSteps, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls }) {
+export default function TurnDetail({ turn, planSteps, planProgress, turnTools, activeView, setActiveView, sessionMeta, turns, setSelectedTurnN, selectedTurnN, allToolCalls }) {
   const isDark = document.documentElement.className !== "light";
 
   if (!turn && activeView !== "allturns") {
@@ -108,7 +108,7 @@ export default function TurnDetail({ turn, planSteps, turnTools, activeView, set
       {/* Content area */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {activeView === "overview" && (
-          <OverviewView turn={turn} turnTools={turnTools} planSteps={planSteps} allToolCalls={allToolCalls} turns={turns} sessionMeta={sessionMeta} />
+          <OverviewView turn={turn} turnTools={turnTools} planSteps={planSteps} planProgress={planProgress} allToolCalls={allToolCalls} turns={turns} sessionMeta={sessionMeta} />
         )}
         {activeView === "timeline" && <Timeline turn={turn} turnTools={turnTools} />}
         {activeView === "tools" && <ToolCallTree turn={turn} turnTools={turnTools} />}
@@ -120,7 +120,7 @@ export default function TurnDetail({ turn, planSteps, turnTools, activeView, set
 }
 
 /* ====== Overview View ====== */
-function OverviewView({ turn, turnTools, planSteps, allToolCalls, turns, sessionMeta }) {
+function OverviewView({ turn, turnTools, planSteps, planProgress, allToolCalls, turns, sessionMeta }) {
   const tok = turn.tokens || {};
   const total = (tok.in || 0) + (tok.out || 0) + (tok.reason || 0);
   const ctxPct = turn.ctxWindow > 0 ? Math.round((total / turn.ctxWindow) * 100) : 0;
@@ -152,7 +152,7 @@ function OverviewView({ turn, turnTools, planSteps, allToolCalls, turns, session
 
         {/* Plan Steps */}
         <Panel icon={<GitBranch size={12} className="text-amber-400" />} title="Plan Steps" count={planSteps?.length || 0}>
-          <PlanStepList steps={planSteps} />
+          <PlanStepList steps={planSteps} progress={planProgress} turns={turns} />
         </Panel>
       </div>
 
@@ -253,28 +253,71 @@ function StatusChip({ label, active, detail }: { label: any; active: any; detail
 }
 
 /* ====== Plan Step List ====== */
-function PlanStepList({ steps }: { steps: any[] }) {
-  if (!steps || steps.length === 0) {
-    return <div className="p-3 text-[9px] text-center" style={{ color: "var(--text-muted)" }}>No plan steps recorded</div>;
-  }
+function PlanStepList({ steps, progress, turns }: { steps: any[]; progress?: { completed: number; total: number }; turns?: any[] }) {
+  const pct = progress && progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : steps && steps.length > 0 ? Math.round((steps.filter((s: any) => s.status === "completed").length / steps.length) * 100) : 0;
+  const hasActiveTurn = turns?.some((t: any) => !t.finishedAt);
+  const hasInProgress = steps?.some((s: any) => s.status === "in_progress");
+  const isAllDone = pct === 100 || (!hasActiveTurn && steps && steps.length > 0 && !hasInProgress);
+  const phase = pct === 100 ? "ALL DONE"
+    : hasActiveTurn && hasInProgress ? "IN PROGRESS"
+    : isAllDone ? "ALL DONE"
+    : "PENDING";
+  const barColor = pct === 100 ? "linear-gradient(90deg, #10b981, #34d399)"
+    : isAllDone ? "linear-gradient(90deg, #6b7280, #9ca3af)"
+    : hasActiveTurn ? "linear-gradient(90deg, #f59e0b, #fbbf24)"
+    : "var(--border)";
+  
   return (
-    <div className="p-2 space-y-1 max-h-[200px] overflow-y-auto">
-      {steps.map((ps, i) => (
-        <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: "var(--bg-card)" }}>
-          <Circle size={6} className={`shrink-0 ${ps.status === "completed" ? "text-emerald-400 fill-emerald-400" : ps.status === "in_progress" ? "text-amber-400 fill-amber-400" : ""}`}
-            style={!ps.status || ps.status === "pending" ? { color: "var(--text-muted)" } : {}} />
-          <span className="text-[9px] truncate" style={{ color: "var(--text-secondary)" }}>{ps.step}</span>
-          <span className={`text-[7px] ml-auto shrink-0 ${ps.status === "completed" ? "text-emerald-400" : ps.status === "in_progress" ? "text-amber-400" : ""}`}
-            style={!ps.status || ps.status === "pending" ? { color: "var(--text-muted)" } : {}}>
-            {ps.status ? ps.status.replace("_", " ") : "pending"}
-          </span>
+    <div className="p-2 space-y-2">
+      {/* Progress bar */}
+      {(progress?.total > 0 || steps?.length > 0) && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[8px] font-semibold uppercase tracking-wider" style={{
+              color: isAllDone ? "var(--accent-green)" : hasActiveTurn ? "var(--accent-amber)" : "var(--text-muted)"
+            }}>
+              {phase}
+            </span>
+            <span className="text-[8px] font-mono" style={{ color: "var(--text-muted)" }}>
+              {progress ? (progress.completed + "/" + progress.total) : (steps.filter((s: any) => s.status === "completed").length + "/" + steps.length)}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-hover)" }}>
+            <div className="h-full rounded-full transition-all duration-500" style={{
+              width: pct + "%",
+              background: barColor
+            }} />
+          </div>
         </div>
-      ))}
+      )}
+      {(!steps || steps.length === 0) && (
+        <div className="p-3 text-[9px] text-center" style={{ color: "var(--text-muted)" }}>No plan steps recorded</div>
+      )}
+      {steps && steps.length > 0 && (
+        <div className="space-y-1 max-h-[180px] overflow-y-auto">
+          {steps.map((ps, i) => (
+            <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded group" style={{ background: "var(--bg-card)" }}>
+              <Circle size={6} className={`shrink-0 ${ps.status === "completed" ? "text-emerald-400 fill-emerald-400" : ps.status === "in_progress" ? "text-amber-400 fill-amber-400 animate-pulse" : ""}`}
+                style={!ps.status || ps.status === "pending" ? { color: "var(--text-muted)" } : {}} />
+              <span className="text-[9px] truncate flex-1" style={{ color: ps.status === "completed" ? "var(--text-muted)" : "var(--text-secondary)" }}>{ps.step}</span>
+              <span className={`text-[7px] shrink-0 font-mono ${ps.status === "completed" ? "text-emerald-400" : ps.status === "in_progress" ? "text-amber-400" : ""}`}
+                style={!ps.status || ps.status === "pending" ? { color: "var(--text-muted)" } : {}}>
+                {ps.status ? ps.status.replace("_", " ") : "pending"}
+              </span>
+              {ps.lastTurnN && (
+                <span className="text-[7px] shrink-0 font-mono opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--text-muted)" }}>
+                  T{ps.lastTurnN}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ====== Tool Call Row (click-expand) ====== */
+/* ====== Tool Call Row (click-expand) ====== *//* ====== Tool Call Row (click-expand) ====== */
 function ToolCallRow({ tc }: { tc: any }) {
   const [open, setOpen] = useState(false);
   if (!tc) return null;

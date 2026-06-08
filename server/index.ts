@@ -17,9 +17,10 @@ let sessionMeta: SessionMeta | null = null;
 let turns: Turn[] = [];
 let toolCalls: ToolCall[] = [];
 let planSteps: PlanStep[] = [];
-let tokenMetrics = {
+let tokenMetrics: any = {
   total: { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0, reasoning_output_tokens: 0, total_tokens: 0 },
   contextWindow: 0,
+  planProgress: { completed: 0, total: 0 },
 };
 let currentSessionFile: string | null = null;
 let currentWatcher: any = null;
@@ -32,12 +33,13 @@ function safeJson(s: string): any {
 function isSystemMsg(t: string): boolean {
   if (!t || !t.trim()) return true;
   const s = t.trim();
-  if (s.startsWith("# AGENTS.md") || s.startsWith("# RTK") || s.includes("RTK (Rust Token Killer)") || s.includes("Rust Token Killer")) return true;
+  if (s.startsWith("# In app browser") || s.startsWith("- The user has the in-app browser") || s.startsWith("- Current URL:") || s.startsWith("The user has the in-app browser") || s.startsWith("# AGENTS.md") || s.startsWith("# RTK") || s.includes("RTK (Rust Token Killer)") || s.includes("Rust Token Killer")) return true;
   if (s.startsWith("<codex_internal_context") || s.startsWith("<turn_aborted>")) return true;
   if (s.startsWith("<INSTRUCTIONS>") || s.startsWith("<!-- headroom")) return true;
   if (s.startsWith("Continue working toward") || s.startsWith("The objective below") || s.startsWith("Continue working on")) return true;
   if (/^Continue working/i.test(s)) return true;
   if (s.includes("Token-Optimized Commands") || s.includes("--- project-doc ---")) return true;
+  if (s.startsWith("## My request for Codex:")) return true;
   if (s.startsWith("When running shell") || s.startsWith("In command chains") || s.startsWith("For debugging")) return true;
   if (s.startsWith("<environment_context>") || s.startsWith("<filesystem>") || s.startsWith("<app-context>")) return true;
   if (s.startsWith("<collaboration_mode>") || s.startsWith("<permissions") || s.startsWith("<skills_instructions>")) return true;
@@ -69,13 +71,13 @@ function extractSessionName(turns: Turn[]): string {
 function parseSession(raw: string): ParsedSession {
   const R: ParsedSession = {
     meta: null, turns: [], toolCalls: [], planSteps: [],
+    planProgress: { completed: 0, total: 0 },
     tokenTotal: { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0, reasoning_output_tokens: 0, total_tokens: 0 },
     ctxWindow: 0,
   };
   let tn = 0;
   const seenTurnIds = new Set<string>();
   let lastCompactedMsg: string | null = null;
-  let prevCumIn = 0, prevCumOut = 0, prevCumReason = 0;
   const lines = raw.split("\n");
 
   for (const line of lines) {
@@ -95,6 +97,27 @@ function parseSession(raw: string): ParsedSession {
     }
     // turn_context
     else if (type === "turn_context") {
+      // Mark previous turn as finished
+      const prev = R.turns[tn - 1];
+      if (prev && !prev.finishedAt) {
+        prev.finishedAt = timestamp;
+        if (prev.startedAt) {
+          prev.duration = Math.round((new Date(timestamp).getTime() - new Date(prev.startedAt).getTime()) / 1000);
+        }
+        // Revert in_progress plan steps from finished turn back to pending
+        if (prev.planSteps && prev.planSteps.length > 0) {
+          for (const ps of prev.planSteps) {
+            if (ps.status === "in_progress") {
+              const sp = R.planSteps.find((s: PlanStep) => s.step === ps.step);
+              if (sp && sp.status === "in_progress") sp.status = "pending";
+            }
+          }
+          R.planProgress = {
+            completed: R.planSteps.filter((s: any) => s.status === "completed").length,
+            total: R.planSteps.length
+          };
+        }
+      }
       const tid: string = payload.turn_id;
       if (seenTurnIds.has(tid)) {
         const ex = R.turns.find((t: Turn) => t.id === tid);
@@ -111,6 +134,7 @@ function parseSession(raw: string): ParsedSession {
         reasoning: "", duration: null, compacted: false, compactRestarts: 0,
         compactSummary: lastCompactedMsg || "", goalObjective: "",
         aborted: false, abortReason: "", taskDone: false,
+        planSteps: [],
         wastedTokens: 0, wasteReasons: [],
       });
       lastCompactedMsg = null;
@@ -139,24 +163,36 @@ function parseSession(raw: string): ParsedSession {
           if (payload.model_context_window) cur.ctxWindow = payload.model_context_window;
       } else if (pt === "task_completed") {
         cur.taskDone = true;
+      } else if (pt === "turn_aborted") {
+        cur.aborted = true;
+        cur.abortReason = payload.reason || "interrupted";
+        cur.finishedAt = timestamp;
       } else if (pt === "task_aborted") {
         cur.aborted = true;
         cur.abortReason = payload.reason || "interrupted";
+        cur.finishedAt = timestamp;
       } else if (pt === "token_count") {
+        // Accumulate last_token_usage (per-step delta) for per-turn tokens
+        const lu = payload.info?.last_token_usage || payload.last_token_usage;
+        if (lu) {
+          cur.tokens.in += (lu.input_tokens || 0);
+          cur.tokens.out += (lu.output_tokens || 0);
+          cur.tokens.reason += (lu.reasoning_output_tokens || 0);
+        }
+        // Context window
+        const cw = payload.info?.model_context_window || payload.model_context_window;
+        if (cw) {
+          cur.ctxWindow = cw;
+          if (!R.ctxWindow) R.ctxWindow = cw;
+        }
+        // Session totals from cumulative (last event wins)
         const tu = payload.info?.total_token_usage || payload.total_token_usage;
         if (tu) {
-          cur.tokens = {
-            in: (tu.input_tokens || 0) + (tu.cached_input_tokens || 0),
-            out: tu.output_tokens || 0,
-            reason: tu.reasoning_output_tokens || 0,
-          };
-          cur.ctxWindow = payload.model_context_window || 0;
           R.tokenTotal.input_tokens = tu.input_tokens || 0;
           R.tokenTotal.cached_input_tokens = tu.cached_input_tokens || 0;
           R.tokenTotal.output_tokens = tu.output_tokens || 0;
           R.tokenTotal.reasoning_output_tokens = tu.reasoning_output_tokens || 0;
           R.tokenTotal.total_tokens = tu.total_tokens || 0;
-          if (payload.model_context_window) R.ctxWindow = payload.model_context_window;
         }
       } else if (pt === "wasted_tokens") {
         cur.wastedTokens += payload.amount || 0;
@@ -177,13 +213,27 @@ function parseSession(raw: string): ParsedSession {
               for (const ps of args.plan) {
                 const step = ps.step || ps.name || ps.description || JSON.stringify(ps);
                 const status = ps.status || "";
+                // Per-turn: add to current turn's planSteps
+                cur.planSteps = cur.planSteps || [];
+                cur.planSteps.push({ step, status, createdTurnN: tn, lastTurnN: tn });
+                // Session-wide: merge into current plan with history
                 const existing = R.planSteps.findIndex((s: PlanStep) => s.step === step);
                 if (existing >= 0) {
-                  if (status) R.planSteps[existing].status = status;
+                  if (status) {
+                    if (R.planSteps[existing].status === "completed" && status !== "completed") {
+                      // Step was resurrected: count it again
+                    }
+                    R.planSteps[existing].status = status;
+                    R.planSteps[existing].lastTurnN = tn;
+                  }
                 } else {
-                  R.planSteps.push({ step, status });
+                  R.planSteps.push({ step, status, createdTurnN: tn, lastTurnN: tn });
                 }
               }
+              // Update progress
+              const total = R.planSteps.length;
+              const completed = R.planSteps.filter((s: any) => s.status === "completed").length;
+              R.planProgress = { completed, total };
             }
           } catch { /* ignore parse errors */ }
         }
@@ -222,8 +272,6 @@ function parseSession(raw: string): ParsedSession {
         cur.finishedAt = timestamp;
         if (cur.startedAt) {
           cur.duration = Math.round((new Date(timestamp).getTime() - new Date(cur.startedAt).getTime()) / 1000);
-        const cf = cur as any;
-        if (cf._cumIn !== undefined) { prevCumIn = cf._cumIn; prevCumOut = cf._cumOut; prevCumReason = cf._cumReason; }
         }
       }
     }
@@ -235,6 +283,51 @@ function parseSession(raw: string): ParsedSession {
         cur.abortReason = payload.reason || "aborted";
         cur.finishedAt = timestamp;
       }
+    }
+  }
+  // Calculate wasted tokens: aborted + compacted turns
+  for (const t of R.turns) {
+    if (t.aborted || t.compacted) {
+      const tt = (t.tokens.in || 0) + (t.tokens.out || 0) + (t.tokens.reason || 0);
+      t.wastedTokens = tt;
+      if (t.aborted) t.wasteReasons.push("turn aborted");
+      if (t.compacted) t.wasteReasons.push("context compacted (" + (t.compactRestarts || 1) + "x)");
+    }
+  }
+  // Safety net: revert any in_progress steps from finished turns
+  for (const t of R.turns) {
+    if (t.finishedAt && t.planSteps && t.planSteps.length > 0) {
+      for (const ps of t.planSteps) {
+        if (ps.status === "in_progress") {
+          const sp = R.planSteps.find((s: PlanStep) => s.step === ps.step);
+          if (sp && sp.status === "in_progress") sp.status = "pending";
+        }
+      }
+    }
+  }
+  R.planProgress = {
+    completed: R.planSteps.filter((s: any) => s.status === "completed").length,
+    total: R.planSteps.length
+  };
+  // Mark last turn finished and clean up plan steps
+  const last = R.turns[tn - 1];
+  if (last && !last.finishedAt && last.agentMessages.length > 0) {
+    last.finishedAt = last.agentMessages[last.agentMessages.length - 1].ts;
+    if (last.startedAt) {
+      last.duration = Math.round((new Date(last.finishedAt).getTime() - new Date(last.startedAt).getTime()) / 1000);
+    }
+    // Revert in_progress plan steps from last turn
+    if (last.planSteps && last.planSteps.length > 0) {
+      for (const ps of last.planSteps) {
+        if (ps.status === "in_progress") {
+          const sp = R.planSteps.find((s: PlanStep) => s.step === ps.step);
+          if (sp && sp.status === "in_progress") sp.status = "pending";
+        }
+      }
+      R.planProgress = {
+        completed: R.planSteps.filter((s: any) => s.status === "completed").length,
+        total: R.planSteps.length
+      };
     }
   }
   return R;
@@ -298,6 +391,7 @@ function scanAllSessions(): SessionInfo[] {
           name: name || meta?.id?.slice(0, 12) || path.basename(fp, ".jsonl").slice(0, 30),
           filePath: fp,
           startedAt: meta?.timestamp || stat.birthtime.toISOString(),
+          lastModified: stat.mtime.toISOString(),
           turnCount,
           totalTokens,
           toolCallCount,
@@ -321,9 +415,10 @@ function computeStats(sessions: SessionInfo[]): Stats {
 
   for (const s of sessions) {
     const ts = new Date(s.startedAt).getTime();
+    const mod = s.lastModified ? new Date(s.lastModified).getTime() : ts;
     totalAllTokens += s.totalTokens;
     totalAllTurns += s.turnCount;
-    if (ts >= todayStart) { todayTokens += s.totalTokens; todaySessions++; }
+    if (mod >= todayStart) { todayTokens += s.totalTokens; todaySessions++; }
     if (ts >= monthStart) { monthTokens += s.totalTokens; monthSessions++; }
   }
 
@@ -366,7 +461,7 @@ function switchToSession(fp: string) {
       turns = p.turns;
       toolCalls = p.toolCalls;
       planSteps = p.planSteps;
-      tokenMetrics = { total: p.tokenTotal, contextWindow: p.ctxWindow };
+      tokenMetrics = { total: p.tokenTotal, contextWindow: p.ctxWindow, planProgress: p.planProgress };
       broadcastFullState();
     } catch (e: any) { console.error("watch error:", e.message); }
   });
@@ -398,6 +493,7 @@ function broadcastFullState() {
     meta: sessionMeta,
     turns: buildClientTurns(),
     planSteps,
+    planProgress: tokenMetrics.planProgress || { completed: 0, total: 0 },
     toolCalls: buildClientTools(),
     stats: computeStats(scanAllSessions()),
   });
@@ -453,7 +549,7 @@ wss.on("connection", (ws: any) => {
       sessions: all,
       currentSessionId: sessionMeta?.id || all[0]?.id,
       stats: computeStats(all),
-      liveSession: { meta: sessionMeta, turns: buildClientTurns(), planSteps },
+      liveSession: { meta: sessionMeta, turns: buildClientTurns(), planSteps, planProgress: tokenMetrics.planProgress || { completed: 0, total: 0 } },
       liveMetrics: {
         tokens: tokenMetrics,
         toolCalls: toolCalls.length,
@@ -469,7 +565,10 @@ wss.on("connection", (ws: any) => {
         const all = scanAllSessions();
         const s = all.find((x: SessionInfo) => x.id === msg.sessionId || x.id.startsWith(msg.sessionId));
         if (s) {
+          // Sync global state
           const d = loadSession(s.filePath);
+          planSteps = d!.planSteps;
+          tokenMetrics.planProgress = d!.planProgress || { completed: 0, total: 0 };
           ws.send(JSON.stringify({
             type: "session_loaded",
             payload: {
@@ -484,6 +583,7 @@ wss.on("connection", (ws: any) => {
                 })),
               })),
               planSteps: d!.planSteps,
+              planProgress: d!.planProgress || { completed: 0, total: 0 },
             },
           }));
         }

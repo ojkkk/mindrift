@@ -18,7 +18,7 @@ const App: React.FC = () => {
   const {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN, selectedTurn, selectedTurnTools,
-    planSteps, stats, activeView, setActiveView, allToolCalls,
+    planSteps, planProgress, stats, activeView, setActiveView, allToolCalls,
   } = useAgentScope();
 
   const [filteredSessions, setFilteredSessions] = useState<any>(null); const [showWizard, setShowWizard] = useState(false);
@@ -106,7 +106,7 @@ const App: React.FC = () => {
           <TurnSidebar turns={turns} selectedTurnN={selectedTurnN} onSelect={setSelectedTurnN} />
         </div>
         <TurnDetail
-          turn={selectedTurn} planSteps={planSteps} turnTools={selectedTurnTools}
+          turn={selectedTurn} planSteps={planSteps} planProgress={planProgress} turnTools={selectedTurnTools}
           activeView={activeView} setActiveView={setActiveView} sessionMeta={sessionMeta}
           turns={turns} selectedTurnN={selectedTurnN} setSelectedTurnN={setSelectedTurnN}
           allToolCalls={allToolCalls}
