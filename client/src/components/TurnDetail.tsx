@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { Suspense, useState, useMemo } from "react";
 import { Zap, Wrench, GitBranch, Brain, Circle, Clock, User, Bot, ChevronDown, ChevronRight, Eye, Columns, FileText, AlertTriangle, Lightbulb, BarChart3, Activity, Cpu, Gauge, Thermometer, ShieldCheck, ShieldAlert } from "lucide-react";
 import Timeline from "./Timeline";
 import RawLogViewer from "./RawLogViewer";

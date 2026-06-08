@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import { useAgentScope } from "./hooks/useAgentScope";
 import SessionFilter from "./components/SessionFilter";
 import SessionBar from "./components/SessionBar";
