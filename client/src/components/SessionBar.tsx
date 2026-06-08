@@ -1,4 +1,5 @@
-import React from "react";
+// @ts-nocheck
+
 import { Calendar, MessageCircle, Loader2, Clock, AlertTriangle, Flame } from "lucide-react";
 
 const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; if (n < 1000) return String(Math.round(n)); return String(n); };

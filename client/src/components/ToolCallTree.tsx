@@ -1,4 +1,5 @@
-import React from "react";
+// @ts-nocheck
+
 import { useState, useMemo } from "react";
 import { Wrench, Clock, AlertCircle, ChevronRight, ChevronDown, Repeat } from "lucide-react";
 

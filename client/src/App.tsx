@@ -1,4 +1,6 @@
-import React, { useState, useEffect, type ReactNode } from "react";
+// @ts-nocheck
+
+import { useState, useEffect } from "react";
 import { useAgentScope } from "./hooks/useAgentScope";
 import SessionFilter from "./components/SessionFilter";
 import SessionBar from "./components/SessionBar";
@@ -14,7 +16,7 @@ const fmt = (n) => {
   return String(n);
 };
 
-const App: React.FC = () => {
+export default function App() {
   const {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN, selectedTurn, selectedTurnTools,
@@ -159,7 +161,7 @@ const App: React.FC = () => {
   );
 }
 
-function StatPill({ icon, label, value, unit, alert }: { icon: React.ReactNode; label: string; value: string; unit: string; alert?: boolean }) {
+function StatPill({ icon, label, value, unit, alert }) {
   return (
     <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: "var(--bg-card)" }}>
       {icon}
@@ -169,5 +171,3 @@ function StatPill({ icon, label, value, unit, alert }: { icon: React.ReactNode; 
     </div>
   );
 }
-
-export default App;

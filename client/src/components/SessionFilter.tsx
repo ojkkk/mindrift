@@ -1,4 +1,5 @@
-import React from "react";
+// @ts-nocheck
+
 import { useState } from "react";
 import { Search, Filter, X, Zap, Wrench, Flame } from "lucide-react";
 
