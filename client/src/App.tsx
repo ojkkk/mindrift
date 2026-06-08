@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const allSes = stats?.all?.sessions || 0;
   const allTurns = stats?.all?.turns || 0;
   const anomalies = stats?.anomalies || 0;
+  const efficiency = stats?.efficiency || 0;
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg-deep)", color: "var(--text-primary)" }}>
       <div className="absolute inset-0 pointer-events-none opacity-[0.012]" style={{ backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)", backgroundSize: "20px 20px" }} />

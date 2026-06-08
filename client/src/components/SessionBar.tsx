@@ -1,4 +1,4 @@
-import { Calendar, MessageCircle, Loader2, Clock, AlertTriangle, Flame } from "lucide-react";
+import { Calendar, MessageCircle, Loader2, Clock, AlertTriangle, Flame, Code2, Bot } from "lucide-react";
 
 const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; if (n < 1000) return String(Math.round(n)); return String(n); };
 function fmtDate(ts) { if (!ts) return ""; const d = new Date(ts); const now = new Date(); const diff = Number(now) - Number(d); if (diff < 60000) return "now"; if (diff < 3600000) return Math.round(diff / 60000) + "m"; if (diff < 86400000) return Math.round(diff / 3600000) + "h"; if (diff < 604800000) return Math.round(diff / 86400000) + "d"; return d.toLocaleDateString("zh-CN", { month: "short", day: "numeric" }); }

@@ -1,0 +1,10 @@
+{
+  "port": 3344,
+  "sources": [
+    { "type": "codex", "path": "" },
+    { "type": "claude-code", "path": "" }
+  ],
+  "theme": "dark",
+  "webhooks": [],
+  "scanIntervalMs": 2000
+}

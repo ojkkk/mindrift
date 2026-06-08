@@ -91,6 +91,7 @@ export interface SessionInfo {
   id: string;
   name: string;
   filePath: string;
+  source: string;
   startedAt: string;
   turnCount: number;
   totalTokens: number;
@@ -106,6 +107,7 @@ export interface Stats {
   month: { tokens: number; sessions: number };
   all: { tokens: number; turns: number; sessions: number };
   anomalies: number;
+  efficiency: number;
 }
 
 // ---- WebSocket message types ----

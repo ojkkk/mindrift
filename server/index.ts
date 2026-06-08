@@ -8,8 +8,13 @@ const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { scanClaudeSessions, parseClaudeSession } = require("./parsers/claude");
 
-const PORT = 3344;
+// Load config
+const CONFIG_PATH = path.join(__dirname, "..", "mindrift.config.json");
+let appConfig: any = { port: 3344, sources: [], theme: "dark", webhooks: [] };
+try { if (fs.existsSync(CONFIG_PATH)) appConfig = { ...appConfig, ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8")) }; } catch {}
+const PORT = appConfig.port || 3344;
 const CODEX_SESSIONS = path.join(os.homedir(), ".codex", "sessions");
 const CLIENT_DIST = path.join(__dirname, "..", "client", "dist");
 
@@ -427,6 +432,7 @@ function computeStats(sessions: SessionInfo[]): Stats {
     month: { tokens: monthTokens, sessions: monthSessions },
     all: { tokens: totalAllTokens, turns: totalAllTurns, sessions: sessions.length },
     anomalies: sessions.filter((s: SessionInfo) => s.anomalies && s.anomalies.length > 0).length,
+    efficiency: totalAllTurns > 0 ? Math.round(totalAllTokens / totalAllTurns / 1000) : 0,
   };
 }
 
@@ -523,6 +529,7 @@ app.get("/api/sessions/:id/raw", (req: any, res: any) => {
 });
 
 app.get("/api/stats", (_: any, r: any) => { r.json(computeStats(scanAllSessions())); });
+app.get("/api/config", (_: any, r: any) => r.json(appConfig));
 app.get("/api/status", (_: any, r: any) => r.json({
   ok: true,
   turns: turns.length,

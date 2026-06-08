@@ -1,75 +1,101 @@
 import { useMemo } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Zap, TrendingUp } from "lucide-react";
 
-const fmt = (n) => { if (!n && n !== 0) return "0"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; if (n < 1000) return String(Math.round(n)); return String(n); };
+const fmt = (n: number) => { if (!n && n !== 0) return "0"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"; return String(Math.round(n)); };
 
-export default function TurnTokenChart({ turns, selectedTurnN, onSelectTurn }) {
-  const ranked = useMemo(() => {
-    const list = turns
-      .map((t) => { const tok = t.tokens || {}; return { n: t.n, total: (tok.in || 0) + (tok.out || 0) + (tok.reason || 0), inTokens: tok.in || 0, outTokens: tok.out || 0, reasonTokens: tok.reason || 0, userMsg: t.userMsg || "", tc: t.tc || 0, done: t.done || t.taskDone || !!t.finishedAt }; })
-      .filter((t) => t.total > 0)
-      .sort((a, b) => b.total - a.total);
-    const max = list.length > 0 ? list[0].total : 1;
-    return { list, max };
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="glass px-3 py-2 rounded-lg border text-[9px]" style={{ background: "var(--bg-surface)", borderColor: "var(--border)", boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
+      <div className="font-semibold mb-1" style={{ color: "var(--text-primary)" }}>Turn #{d.n}</div>
+      {d.userMsg && <div className="mb-1 max-w-[180px] truncate" style={{ color: "var(--text-secondary)" }}>{d.userMsg.slice(0, 60)}</div>}
+      <div className="space-y-0.5">
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-cyan-400" /><span style={{ color: "var(--text-muted)" }}>In: {fmt(d.inTokens)}</span></div>
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-emerald-400" /><span style={{ color: "var(--text-muted)" }}>Out: {fmt(d.outTokens)}</span></div>
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-purple-400" /><span style={{ color: "var(--text-muted)" }}>Reason: {fmt(d.reasonTokens)}</span></div>
+      </div>
+      <div className="mt-1 font-mono" style={{ color: "var(--accent-cyan)" }}>Total: {fmt(d.total)}</div>
+    </div>
+  );
+};
+
+export default function TurnTokenChart({ turns, selectedTurnN, onSelectTurn }: { turns: any[]; selectedTurnN: number | null; onSelectTurn: (n: number) => void }) {
+  const chartData = useMemo(() => {
+    return turns
+      .map((t) => {
+        const tok = t.tokens || {};
+        return {
+          n: t.n,
+          total: (tok.in || 0) + (tok.out || 0) + (tok.reason || 0),
+          inTokens: tok.in || 0,
+          outTokens: tok.out || 0,
+          reasonTokens: tok.reason || 0,
+          userMsg: t.userMsg || "",
+          tc: t.tc || 0,
+          done: t.done || t.taskDone || !!t.finishedAt,
+        };
+      })
+      .filter((t) => t.total > 0);
   }, [turns]);
 
-  if (ranked.list.length === 0) {
+  if (chartData.length === 0) {
     return <div className="flex-1 flex items-center justify-center" style={{ color: "var(--text-muted)" }}><div className="text-center text-[10px]">No token data yet</div></div>;
   }
 
-  const top3 = ranked.list.slice(0, 3);
-  const totalAll = ranked.list.reduce((s, t) => s + t.total, 0);
+  const totalAll = chartData.reduce((s, t) => s + t.total, 0);
+  const top3 = [...chartData].sort((a, b) => b.total - a.total).slice(0, 3);
 
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-3">
-      <div className="flex items-center gap-3 text-[9px] px-1">
+      <div className="flex items-center gap-3 text-[9px] px-1 flex-wrap">
         <span style={{ color: "var(--text-muted)" }}>
-          <span className="font-mono" style={{ color: "var(--text-primary)" }}>{ranked.list.length}</span> active turns
+          <span className="font-mono" style={{ color: "var(--text-primary)" }}>{chartData.length}</span> turns
         </span>
         <span style={{ color: "var(--text-muted)" }}>
           <Zap size={9} className="inline text-cyan-500/60 mr-0.5" />
-          <span className="font-mono" style={{ color: "var(--text-primary)" }}>{fmt(totalAll)}</span> total tokens
+          <span className="font-mono" style={{ color: "var(--text-primary)" }}>{fmt(totalAll)}</span> total
         </span>
         <span style={{ color: "var(--text-muted)" }}>
-          <TrendingUp size={9} className="inline text-red-400/60 mr-0.5" />
+          <TrendingUp size={9} className="inline text-amber-400/60 mr-0.5" />
           Top: <span className="font-mono" style={{ color: "var(--text-primary)" }}>#{top3[0]?.n}</span> ({fmt(top3[0]?.total || 0)})
         </span>
       </div>
 
-      <div className="space-y-1">
-        {ranked.list.map((t, i) => {
-          const pct = (t.total / ranked.max) * 100;
-          const isSelected = t.n === selectedTurnN;
-          const isTop = i < 3;
-          return (
-            <button key={t.n} onClick={() => onSelectTurn(t.n)}
-              className="w-full text-left group hover:bg-white/[0.02] rounded transition-colors px-2 py-1"
-              style={isSelected ? { background: "var(--bg-hover)", boxShadow: "0 0 0 1px rgba(34,211,238,0.2)" } : {}}>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-[9px] font-mono w-8 shrink-0" style={{ color: isSelected ? "var(--accent-cyan)" : "var(--text-muted)" }}>#{t.n}</span>
-                <div className="flex-1 h-2 rounded-full overflow-hidden relative" style={{ background: "var(--border)" }}>
-                  <div className="absolute inset-0 flex">
-                    {t.inTokens > 0 && <div className="h-full bg-cyan-500/40" style={{ width: `${(t.inTokens / t.total) * pct}%` }} />}
-                    {t.reasonTokens > 0 && <div className="h-full bg-purple-500/40" style={{ width: `${(t.reasonTokens / t.total) * pct}%` }} />}
-                    {t.outTokens > 0 && <div className="h-full bg-amber-500/40" style={{ width: `${(t.outTokens / t.total) * pct}%` }} />}
-                  </div>
-                </div>
-                <span className="text-[9px] font-mono w-14 text-right shrink-0" style={{ color: "var(--text-secondary)" }}>{fmt(t.total)}</span>
-              </div>
-              <div className="flex items-center gap-2 pl-10">
-                <span className="text-[8px] truncate flex-1" style={{ color: "var(--text-dim)" }}>{t.userMsg?.slice(0, 60) || (t.done ? "(done)" : "processing\u2026")}</span>
-                <span className="text-[8px] font-mono shrink-0" style={{ color: "var(--text-muted)" }}>{t.tc} tools</span>
-              </div>
-            </button>
-          );
-        })}
+      {/* Bar Chart */}
+      <div className="h-[300px]">
+        <ResponsiveContainer>
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+            onClick={(e: any) => { if (e?.activePayload?.[0]?.payload?.n) onSelectTurn(e.activePayload[0].payload.n); }}>
+            <XAxis dataKey="n" tick={{ fontSize: 8, fill: "var(--text-muted)" }} axisLine={{ stroke: "var(--border)" }} tickLine={false} />
+            <YAxis tick={{ fontSize: 8, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} tickFormatter={fmt} width={40} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--bg-hover)" }} />
+            <Bar dataKey="inTokens" stackId="a" radius={[0, 0, 0, 0]}>
+              {chartData.map((d, i) => (
+                <Cell key={i} fill={d.n === selectedTurnN ? "#22d3ee" : "rgba(34,211,238,0.4)"} />
+              ))}
+            </Bar>
+            <Bar dataKey="reasonTokens" stackId="a" radius={[0, 0, 0, 0]}>
+              {chartData.map((d, i) => (
+                <Cell key={i} fill={d.n === selectedTurnN ? "#a78bfa" : "rgba(167,139,250,0.4)"} />
+              ))}
+            </Bar>
+            <Bar dataKey="outTokens" stackId="a" radius={[2, 2, 0, 0]}>
+              {chartData.map((d, i) => (
+                <Cell key={i} fill={d.n === selectedTurnN ? "#34d399" : "rgba(52,211,153,0.4)"} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
-      <div className="flex items-center gap-3 px-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-cyan-500/60" /><span className="text-[8px]" style={{ color: "var(--text-dim)" }}>Input</span></div>
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-purple-500/60" /><span className="text-[8px]" style={{ color: "var(--text-dim)" }}>Reason</span></div>
-        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-amber-500/60" /><span className="text-[8px]" style={{ color: "var(--text-dim)" }}>Output</span></div>
-        <span className="text-[8px] ml-auto" style={{ color: "var(--text-dim)" }}>Click to jump to turn</span>
+      {/* Legend */}
+      <div className="flex items-center gap-3 px-2 text-[8px]" style={{ color: "var(--text-dim)" }}>
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-cyan-400/60" /><span>Input</span></div>
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-purple-400/60" /><span>Reasoning</span></div>
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-emerald-400/60" /><span>Output</span></div>
+        <span className="ml-auto">Click bar to jump</span>
       </div>
     </div>
   );
