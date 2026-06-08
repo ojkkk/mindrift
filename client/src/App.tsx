@@ -6,7 +6,7 @@ import TurnSidebar from "./components/TurnSidebar";
 import TurnDetail from "./components/TurnDetail";
 import { lazy, Suspense } from "react";
 const ShareCard = lazy(() => import("./components/ShareCard"));
-import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2 } from "lucide-react";
+import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, AlertTriangle, TrendingUp, MessageCircle, Cpu, HelpCircle, X, ShieldCheck, ChevronRight, Share2, DollarSign } from "lucide-react";
 
 const fmt = (n: number) => {
   if (!n && n !== 0) return "0";
@@ -14,6 +14,12 @@ const fmt = (n: number) => {
   if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
   if (n < 1000) return String(Math.round(n));
   return String(n);
+};
+
+const formatCost = (cost: number) => {
+  if (cost < 0.01) return "<$0.01";
+  if (cost < 1) return "$" + cost.toFixed(2);
+  return "$" + Math.round(cost);
 };
 
 const App: React.FC = () => {
@@ -68,6 +74,7 @@ const App: React.FC = () => {
           <StatPill icon={<Activity size={10} className="text-emerald-400" />} label="Today" value={String(todaySes)} unit="sessions" />
           <StatPill icon={<BarChart3 size={10} style={{color:"var(--text-muted)"}} />} label="Total" value={String(allSes)} unit="sessions" />
           {anomalies > 0 && <StatPill icon={<Flame size={10} className="text-red-400" />} label="Alerts" value={String(anomalies)} unit="" alert />}
+          {stats?.estimatedCost != null && <StatPill icon={<DollarSign size={10} className="text-emerald-400" />} label="Est. Cost" value={formatCost(stats.estimatedCost)} unit="" />}
         </div>
 
         {/* Right: theme toggle + live status */}

@@ -141,6 +141,7 @@ export interface Stats {
   efficiencyScores?: EfficiencyScores;
   categoryCounts?: Record<string, number>;
   patternInsights?: { totalWasted: number; avgToolSuccess: number; topTool: string };
+  estimatedCost?: number;
 }
 
 // ---- WebSocket message types ----

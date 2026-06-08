@@ -463,6 +463,36 @@ function scanAllSessions(): SessionInfo[] {
   return sessions;
 }
 
+// ====== Model Pricing (USD per 1M tokens, approximate 2026) ======
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "gpt-5.5": { input: 1.25, output: 10 },
+  "gpt-5.4": { input: 1.25, output: 10 },
+  "gpt-5.4-mini": { input: 0.15, output: 0.60 },
+  "gpt-5.3-codex": { input: 0.50, output: 2.00 },
+  "gpt-5.1": { input: 2.50, output: 10 },
+  "gpt-5": { input: 1.25, output: 10 },
+  "gpt-4o": { input: 2.50, output: 10 },
+  "gpt-4o-mini": { input: 0.15, output: 0.60 },
+  "claude-sonnet-4-20250514": { input: 3, output: 15 },
+  "claude-opus-4-20250514": { input: 15, output: 75 },
+  "claude-3.5-sonnet": { input: 3, output: 15 },
+  "claude-3.5-haiku": { input: 0.80, output: 4 },
+  "claude": { input: 3, output: 15 },
+  "custom": { input: 0.50, output: 2 },
+};
+
+function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING["custom"];
+  return (inputTokens / 1e6) * pricing.input + (outputTokens / 1e6) * pricing.output;
+}
+
+function formatCost(cost: number): string {
+  if (cost < 0.01) return "<$0.01";
+  if (cost < 1) return "$" + cost.toFixed(2);
+  if (cost < 10) return "$" + cost.toFixed(2);
+  return "$" + Math.round(cost).toString();
+}
+
 function computeStats(sessions: SessionInfo[]): Stats {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -507,6 +537,11 @@ function computeStats(sessions: SessionInfo[]): Stats {
     efficiencyScores: { tokenROI, toolSuccess: toolSuccessRate, contextUtil, wasteRatio, overall },
     categoryCounts: catCounts,
     patternInsights: { totalWasted: totalWasted, avgToolSuccess: toolSuccessRate, topTool: "" },
+    estimatedCost: estimateCost(
+      sessions[0]?.model || "custom",
+      totalAllTokens * 0.7,
+      totalAllTokens * 0.3
+    ),
   };
 }
 
