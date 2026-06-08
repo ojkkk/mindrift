@@ -46,7 +46,7 @@ export default function SessionTrend({ sessions }: { sessions: SessionInfo[] }) 
     <div className="p-3 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2 px-1">
-        <span className="text-[10px] font-semibold tracking-wide" style={{ color: "var(--text-secondary)" }}>Session Trends</span>
+        <span className="text-[10px] font-semibold tracking-wide" style={{ color: "var(--text-secondary)" }}>Session Trends (30 most recent)</span>
         <span className="text-[9px] font-mono ml-auto" style={{ color: "var(--text-muted)" }}>{chartData.length} sessions</span>
       </div>
 

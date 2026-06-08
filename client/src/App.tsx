@@ -23,13 +23,17 @@ const formatCost = (cost: number) => {
 
 const saveConfig = async () => {
     try {
-      await fetch("/api/config", {
+      const res = await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ costModel: setupModel, platforms: setupPlatforms }),
       });
-      setTimeout(() => window.location.reload(), 500);
-    } catch {}
+      if (res.ok) {
+        setTimeout(() => window.location.reload(), 500);
+      }
+    } catch (e) {
+      console.error("Save config failed:", e);
+    }
   };
 
 const App: React.FC = () => {

@@ -83,6 +83,7 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
       }}>
         <div>
           <div className="text-[9px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-secondary)" }}>Session Health</div>
+          <div className="text-[7px] mt-1" style={{ color: "var(--text-dim)" }}>% of sessions without anomalies</div>
           <div className="text-[8px] mt-0.5" style={{ color: "var(--text-muted)" }}>
             {flagged.length} flagged / {sessions.length} total
           </div>
@@ -103,6 +104,7 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
       {stats?.efficiencyScores && (
         <div>
           <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Efficiency Score</div>
+          <div className="text-[7px] mb-1" style={{ color: "var(--text-dim)" }}>Composite: tool success + waste avoidance + context util + token ROI</div>
           <div className="flex items-center gap-3 mb-2">
             <div className="text-2xl font-bold font-mono" style={{
               color: stats.efficiencyScores.overall >= 70 ? "var(--accent-green)" : stats.efficiencyScores.overall >= 40 ? "var(--accent-amber)" : "var(--accent-red)"
@@ -127,6 +129,7 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
       {stats?.categoryCounts && Object.keys(stats.categoryCounts).length > 0 && (
         <div>
           <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Session Types</div>
+          <div className="text-[7px] mb-1" style={{ color: "var(--text-dim)" }}>By tool/turn ratio and efficiency</div>
           <div className="space-y-1">
             {Object.entries(stats.categoryCounts as Record<string, number>).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
               <div key={cat} className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "var(--bg-card)" }}>
@@ -234,6 +237,18 @@ export default function AnomalyInsights({ sessions, stats }: { sessions: Session
             </div>
           </div>
         )}
+      </div>
+
+      {/* Category Legend */}
+      <div>
+        <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>Category Legend</div>
+        <div className="grid grid-cols-2 gap-1 text-[8px]">
+          <div className="flex items-center gap-1"><CategoryDot category="chat-heavy" /><span style={{color:"var(--text-muted)"}}>Chat Heavy</span></div>
+          <div className="flex items-center gap-1"><CategoryDot category="tool-heavy" /><span style={{color:"var(--text-muted)"}}>Tool Heavy</span></div>
+          <div className="flex items-center gap-1"><CategoryDot category="efficient" /><span style={{color:"var(--text-muted)"}}>Efficient</span></div>
+          <div className="flex items-center gap-1"><CategoryDot category="wasteful" /><span style={{color:"var(--text-muted)"}}>Wasteful</span></div>
+          <div className="flex items-center gap-1"><CategoryDot category="balanced" /><span style={{color:"var(--text-muted)"}}>Balanced</span></div>
+        </div>
       </div>
 
       {/* Top Flagged Sessions */}
