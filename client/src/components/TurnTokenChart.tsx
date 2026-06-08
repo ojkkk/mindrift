@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck — JSX render component, types to be added gradually
 
 import { useMemo } from "react";
 import { Zap, TrendingUp } from "lucide-react";

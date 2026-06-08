@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck — JSX render component, types to be added gradually
 
 import { useState } from "react";
 import { Brain, Wrench, MessageCircle, ChevronDown, ChevronRight, AlertCircle, CheckCircle2, RotateCw, Terminal, FileText, Bot } from "lucide-react";

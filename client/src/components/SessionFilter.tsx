@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck — JSX render component, types to be added gradually
 
 import { useState } from "react";
 import { Search, Filter, X, Zap, Wrench, Flame } from "lucide-react";

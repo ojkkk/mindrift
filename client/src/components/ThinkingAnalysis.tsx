@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck — JSX render component, types to be added gradually
 
 import { useMemo } from "react";
 import { Brain, Target, RotateCw, AlertTriangle, Bug, Lightbulb, CheckCircle2 } from "lucide-react";

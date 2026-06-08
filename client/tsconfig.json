@@ -6,17 +6,14 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "strict": true,
+    "noImplicitAny": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "forceConsistentCasingInFileNames": true,
-    "paths": {
-      "@shared/*": ["../shared/*"]
-    },
-    "baseUrl": "."
+    "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "../shared/**/*.ts"],
   "exclude": ["node_modules", "dist"]

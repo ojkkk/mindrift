@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck — JSX render component, types to be added gradually
 
 import { Calendar, MessageCircle, Loader2, Clock, AlertTriangle, Flame } from "lucide-react";
 

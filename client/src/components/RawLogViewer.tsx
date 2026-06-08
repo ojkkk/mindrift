@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck — JSX render component, types to be added gradually
 
 import { useState, useEffect } from "react";
 import { Download, Copy, Check, FileText } from "lucide-react";

@@ -1,6 +1,4 @@
-// @ts-nocheck
-
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useAgentScope } from "./hooks/useAgentScope";
 import SessionFilter from "./components/SessionFilter";
 import SessionBar from "./components/SessionBar";
@@ -8,7 +6,7 @@ import TurnSidebar from "./components/TurnSidebar";
 import TurnDetail from "./components/TurnDetail";
 import { Radio, Sun, Moon, Zap, Calendar, Activity, Flame, BarChart3, Cpu, UserCircle, HelpCircle, ExternalLink, Settings, CheckCircle } from "lucide-react";
 
-const fmt = (n) => {
+const fmt = (n: number) => {
   if (!n && n !== 0) return "0";
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
   if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
@@ -16,14 +14,14 @@ const fmt = (n) => {
   return String(n);
 };
 
-export default function App() {
+const App: React.FC = () => {
   const {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN, selectedTurn, selectedTurnTools,
     planSteps, stats, activeView, setActiveView, allToolCalls,
   } = useAgentScope();
 
-  const [filteredSessions, setFilteredSessions] = useState(null); const [showWizard, setShowWizard] = useState(false);
+  const [filteredSessions, setFilteredSessions] = useState<any>(null); const [showWizard, setShowWizard] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("mindrift-theme") || "dark");
   const displaySessions = filteredSessions || sessions;
 
@@ -161,7 +159,7 @@ export default function App() {
   );
 }
 
-function StatPill({ icon, label, value, unit, alert }) {
+function StatPill({ icon, label, value, unit, alert }: { icon: React.ReactNode; label: string; value: string; unit: string; alert?: boolean }) {
   return (
     <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: "var(--bg-card)" }}>
       {icon}
@@ -171,3 +169,6 @@ function StatPill({ icon, label, value, unit, alert }) {
     </div>
   );
 }
+
+
+export default App;

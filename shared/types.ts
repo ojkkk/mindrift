@@ -78,6 +78,7 @@ export interface Turn {
   aborted: boolean;
   abortReason: string;
   taskDone: boolean;
+  done?: boolean; // runtime alias
   wastedTokens: number;
   wasteReasons: string[];
   // Client-side merged
