@@ -15,42 +15,25 @@ const fmt = (n: number) => {
   return String(n);
 };
 
-const formatCost = (cost: number) => {
-  if (cost < 0.01) return "<$0.01";
-  if (cost < 1) return "$" + cost.toFixed(2);
-  return "$" + Math.round(cost);
-};
 
-const saveConfig = async () => {
-    try {
-      const res = await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ costModel: setupModel, platform: activePlatform }),
-      });
-      if (res.ok) {
-        setTimeout(() => window.location.reload(), 500);
-      }
-    } catch (e) {
-      console.error("Save config failed:", e);
-    }
-  };
-
-const App: React.FC = () => {
+function App() {
   const {
     connected, sessions, currentSessionId, loadSession, loading,
     sessionMeta, turns, selectedTurnN, setSelectedTurnN, selectedTurn, selectedTurnTools,
     planSteps, planProgress, stats, activeView, setActiveView, allToolCalls, alerts, clearSession,
   } = useAgentScope();
 
-  useEffect(() => { (window as any).__loadSession = loadSession; return () => { delete (window as any).__loadSession; }; }, [loadSession]);
-
   const [filteredSessions, setFilteredSessions] = useState<any>(null); const [showWizard, setShowWizard] = useState(false);
+
+const formatCost = (cost: number) => {
+  if (cost < 0.01) return "<$0.01";
+  return "$" + cost.toFixed(2);
+};
   const [showShare, setShowShare] = useState(false);
   const [setupModel, setSetupModel] = useState("custom");
   const [activePlatform, setActivePlatform] = useState<string>(() => localStorage.getItem("mindrift-platform") || "codex");
   const [theme, setTheme] = useState(() => localStorage.getItem("mindrift-theme") || "dark");
-  const displaySessions = (filteredSessions || sessions).filter((s: any) => !activePlatform || activePlatform === "all" || s.source === activePlatform);
+  const displaySessions = useMemo(() => (filteredSessions || sessions).filter((s: any) => !activePlatform || activePlatform === "all" || s.source === activePlatform), [sessions, activePlatform, filteredSessions]);
 
   useEffect(() => {
     document.documentElement.className = theme;
@@ -59,47 +42,74 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
+  // Client-side pricing + cost estimation
+  const PRICING: Record<string, {input:number;output:number;cacheRead:number}> = {
+    "custom":{input:0.50,output:2.00,cacheRead:0.05},
+    "glm-5.1":{input:1.40,output:4.40,cacheRead:0.26},"glm-5":{input:1.00,output:3.20,cacheRead:0.20},"glm":{input:1.00,output:3.20,cacheRead:0.20},
+    "kimi-k2.6":{input:0.95,output:4.00,cacheRead:0.16},"kimi-k2.5":{input:0.60,output:3.00,cacheRead:0.10},"kimi":{input:0.95,output:4.00,cacheRead:0.16},
+    "mimo-v2.5":{input:0.14,output:0.28,cacheRead:0.0028},"mimo-v2.5-pro":{input:1.74,output:3.48,cacheRead:0.0145},"mimo":{input:1.74,output:3.48,cacheRead:0.0145},
+    "minimax-m3":{input:0.30,output:1.20,cacheRead:0.06},"minimax":{input:0.30,output:1.20,cacheRead:0.06},
+    "qwen3.7-max":{input:2.50,output:7.50,cacheRead:0.50},"qwen3.7-plus":{input:0.40,output:1.60,cacheRead:0.04},"qwen":{input:0.40,output:1.60,cacheRead:0.04},
+    "deepseek-v4-pro":{input:1.74,output:3.48,cacheRead:0.0145},"deepseek-v4-flash":{input:0.14,output:0.28,cacheRead:0.0028},"deepseek":{input:1.74,output:3.48,cacheRead:0.0145},
+    "gpt-5":{input:1.25,output:10,cacheRead:0.625},"gpt-5-mini":{input:0.15,output:0.60,cacheRead:0.075},"gpt-4o":{input:2.50,output:10,cacheRead:1.25},
+    "claude-sonnet":{input:3,output:15,cacheRead:0.30},"claude-opus":{input:15,output:75,cacheRead:1.50},"claude":{input:3,output:15,cacheRead:0.30},
+  };
+
   // Client-side stats from platform-filtered displaySessions
   const clientStats = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     let todayTok = 0, todaySes = 0, monthTok = 0, monthSes = 0, allTok2 = 0, allTurns2 = 0;
+    let todayCost = 0, monthCost = 0;
     for (const s of displaySessions) {
       const mod = s.lastModified ? new Date(s.lastModified).getTime() : new Date(s.startedAt).getTime();
       const ts = new Date(s.startedAt).getTime();
       allTok2 += s.totalTokens || 0;
       allTurns2 += s.turnCount || 0;
-      if (mod >= todayStart) { todayTok += s.totalTokens || 0; todaySes++; }
-      if (ts >= monthStart) { monthTok += s.totalTokens || 0; monthSes++; }
+      const p = PRICING[setupModel] || PRICING["custom"];
+      const sCost = ((s.inputTokens||0)/1e6)*p.input + ((s.outputTokens||0)/1e6)*p.output + ((s.cacheTokens||0)/1e6)*(p.cacheRead||0);
+      if (mod >= todayStart) { todayTok += s.totalTokens || 0; todaySes++; todayCost += sCost; }
+      if (ts >= monthStart) { monthTok += s.totalTokens || 0; monthSes++; monthCost += sCost; }
     }
-    return { todayTok, todaySes, monthTok, monthSes, allTok: allTok2, allTurns: allTurns2, allSes: displaySessions.length };
-  }, [displaySessions]);
+    return { todayTok, todaySes, monthTok, monthSes, allTok: allTok2, allTurns: allTurns2, allSes: displaySessions.length, todayCost, monthCost };
+  }, [displaySessions, setupModel]);
   
   const todayTok = clientStats.todayTok;
   const monthTok = clientStats.monthTok;
   const todaySes = clientStats.todaySes;
+  const monthSes = clientStats.monthSes;
   const allSes = clientStats.allSes;
   const allTurns = clientStats.allTurns;
+  const todayCost = clientStats.todayCost;
+  const monthCost = clientStats.monthCost;
   
-  // Client-side pricing + cost estimation
-  const PRICING: Record<string, {input:number;output:number}> = {
-    "custom": {input:0.50,output:2},"gpt-5": {input:1.25,output:10},"gpt-5-mini": {input:0.15,output:0.60},
-    "gpt-4o": {input:2.50,output:10},"claude-sonnet": {input:3,output:15},"claude-opus": {input:15,output:75},
-    "deepseek-v4-pro": {input:0.55,output:2.19},
-  };
   const estCost = useMemo(() => {
-    let totalIn = 0, totalOut = 0;
-    for (const s of displaySessions) {
-      totalIn += (s.totalTokens || 0) * 0.7;
-      totalOut += (s.totalTokens || 0) * 0.3;
-    }
     const p = PRICING[setupModel] || PRICING["custom"];
-    return (totalIn / 1e6) * p.input + (totalOut / 1e6) * p.output;
+    return displaySessions.reduce((sum: number, s: any) => {
+      return sum + ((s.inputTokens||0)/1e6)*p.input + ((s.outputTokens||0)/1e6)*p.output + ((s.cacheTokens||0)/1e6)*(p.cacheRead||0);
+    }, 0);
   }, [displaySessions, setupModel]);
   const anomalies = displaySessions.filter((s: any) => s.anomalies && s.anomalies.length > 0).length;
   const currentSession = sessions.find((s: any) => s.id === currentSessionId) || null;
   const efficiency = displaySessions.length > 0 ? Math.round(displaySessions.reduce((a: number, s: any) => a + (s.efficiencyScore || 50), 0) / displaySessions.length) : 0;
+
+  const saveConfig = async () => {
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ costModel: setupModel, platforms: [activePlatform] }),
+      });
+      if (res.ok) {
+        setShowWizard(false);
+        setTimeout(() => window.location.reload(), 500);
+      }
+    } catch (e) {
+      console.error("Save config failed:", e);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg-deep)", color: "var(--text-primary)" }}>
       <div className="absolute inset-0 pointer-events-none opacity-[0.012]" style={{ backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
@@ -120,10 +130,11 @@ const App: React.FC = () => {
 
         {/* Center: 5 stat pills */}
         <div className="flex items-center gap-3">
-          <StatPill icon={<Zap size={10} className="text-cyan-400" />} label="Today" value={fmt(todayTok)} unit="tokens" />
-          <StatPill icon={<Calendar size={10} className="text-purple-400" />} label="Month" value={fmt(monthTok)} unit="tokens" />
-          <StatPill icon={<Activity size={10} className="text-emerald-400" />} label="Today" value={String(todaySes)} unit="sessions" />
-          <StatPill icon={<BarChart3 size={10} style={{color:"var(--text-muted)"}} />} label="Total" value={String(allSes)} unit="sessions" />
+          <StatPill icon={<Zap size={10} className="text-cyan-400" />} label="Today" value={formatCost(stats?.today?.cost ?? todayCost)} unit={String(stats?.today?.sessions ?? todaySes) + " sessions"} />
+          <StatPill icon={<Calendar size={10} className="text-purple-400" />} label="Month" value={formatCost(stats?.month?.cost ?? monthCost)} unit={String(stats?.month?.sessions ?? monthSes) + " sessions"} />
+          {(stats?.today?.inputTokens ?? 0) + (stats?.today?.cacheTokens ?? 0) > 0 && (
+            <StatPill icon={<BarChart3 size={10} className="text-cyan-400" />} label="Tokens" value={fmt((stats?.today?.inputTokens ?? 0) + (stats?.today?.cacheTokens ?? 0) + (stats?.today?.outputTokens ?? 0))} unit={"in " + fmt(stats?.today?.inputTokens ?? 0) + " + cache " + fmt(stats?.today?.cacheTokens ?? 0)} />
+          )}
           {anomalies > 0 && <StatPill icon={<Flame size={10} className="text-red-400" />} label="Alerts" value={String(anomalies)} unit="" alert />}
           {sessions[0]?.provider && <StatPill icon={<Cpu size={10} className="text-cyan-400" />} label="API" value={sessions[0].provider} unit="" />}
           {estCost > 0 && <StatPill icon={<DollarSign size={10} className="text-emerald-400" />} label="Est. Cost" value={formatCost(estCost)} unit="" title={"Model: " + setupModel} />}
@@ -270,7 +281,7 @@ const App: React.FC = () => {
   );
 }
 
-function StatPill({ icon, label, value, unit, alert }: { icon: React.ReactNode; label: string; value: string; unit: string; alert?: boolean }) {
+function StatPill({ icon, label, value, unit, alert, title }: { icon: React.ReactNode; label: string; value: string; unit: string; alert?: boolean; title?: string }) {
   return (
     <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: "var(--bg-card)" }}>
       {icon}

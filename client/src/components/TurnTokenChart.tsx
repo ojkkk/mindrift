@@ -28,7 +28,7 @@ export default function TurnTokenChart({ turns, selectedTurnN, onSelectTurn }: {
         const tok = t.tokens || {};
         return {
           n: t.n,
-          total: (tok.in || 0) + (tok.out || 0) + (tok.reason || 0),
+          total: (tok.in || 0) + (tok.cache || 0) + (tok.out || 0) + (tok.reason || 0),
           inTokens: tok.in || 0,
           outTokens: tok.out || 0,
           reasonTokens: tok.reason || 0,

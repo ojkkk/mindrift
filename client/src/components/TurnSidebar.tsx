@@ -23,11 +23,12 @@ export default function TurnSidebar({ turns, selectedTurnN, onSelect }: { turns:
           </div>
         ) : [...turns].reverse().map((turn) => {
           const tok = turn.tokens || {};
-          const total = (tok.in || 0) + (tok.out || 0) + (tok.reason || 0);
+          const total = (tok.in || 0) + (tok.cache || 0) + (tok.out || 0) + (tok.reason || 0);
           const isActive = turn.n === selectedTurnN;
           const isDone = turn.done || turn.taskDone || !!turn.finishedAt;
           const isAborted = turn.aborted;
-          const ctxPct = turn.ctxWindow > 0 ? Math.round((total / turn.ctxWindow) * 100) : 0;
+          const peakCtx = turn.peakTokens || ((tok.in || 0) + (tok.cache || 0));
+          const ctxPct = turn.ctxWindow > 0 ? Math.round((peakCtx / turn.ctxWindow) * 100) : 0;
           let userPreview = turn.userMsg || "";
           if (!userPreview && turn.goalObjective) userPreview = "[Goal] " + turn.goalObjective.slice(0, 80);
           if (!userPreview && turn.agentSummary) userPreview = turn.agentSummary.slice(0, 80);
@@ -75,6 +76,7 @@ export default function TurnSidebar({ turns, selectedTurnN, onSelect }: { turns:
               <div className="flex flex-col gap-1 text-[9px]">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span style={{display:"flex",alignItems:"center",gap:"3px",color:"var(--text-muted)"}}><span style={{color:"var(--accent-cyan)",fontSize:"8px"}}>in</span><span className="font-mono text-[9px]">{fmt(tok.in||0)}</span></span>
+                  <span style={{display:"flex",alignItems:"center",gap:"3px",color:"var(--text-muted)"}}><span style={{color:"var(--accent-amber)",fontSize:"8px"}}>ctx</span><span className="font-mono text-[9px]">{fmt(tok.cache||0)}</span></span>
                   <span style={{display:"flex",alignItems:"center",gap:"3px",color:"var(--text-muted)"}}><span style={{color:"var(--accent-green)",fontSize:"8px"}}>out</span><span className="font-mono text-[9px]">{fmt(tok.out||0)}</span></span>
                   <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
                     <Wrench size={9} style={{color:"var(--accent-purple)", opacity:0.6}} />

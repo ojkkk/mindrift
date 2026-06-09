@@ -1,10 +1,14 @@
 import { Suspense, useState, useMemo } from "react";
 import { Zap, Wrench, GitBranch, Brain, Circle, Clock, User, Bot, ChevronDown, ChevronRight, Eye, Columns, FileText, AlertTriangle, Lightbulb, BarChart3, Activity, Cpu, Gauge, Thermometer, ShieldCheck, ShieldAlert, Loader2, TrendingUp } from "lucide-react";
+
+declare global { interface Window { __loadSession?: (id: string) => void; } }
+
+
 import Timeline from "./Timeline";
 import RawLogViewer from "./RawLogViewer";
 import ToolCallTree from "./ToolCallTree";
 import ThinkingAnalysis from "./ThinkingAnalysis";
-import TokenDonut from "./TokenDonut";
+import TokenBars from "./TokenBars";
 import TurnTokenChart from "./TurnTokenChart";
 import SessionTrend from "./SessionTrend";
 import AnomalyInsights from "./AnomalyInsights";
@@ -39,11 +43,11 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
   }
 
   const tok = turn.tokens || {};
-  const total = (tok.in || 0) + (tok.out || 0) + (tok.reason || 0);
+  const total = (tok.in || 0) + (tok.cache || 0) + (tok.out || 0) + (tok.reason || 0);
   const isDone = turn.done || turn.taskDone || turn.finishedAt;
   const isAborted = turn.aborted;
-  const ctxPct = turn.ctxWindow > 0 ? Math.round((total / turn.ctxWindow) * 100) : 0;
-
+  const peakCtx = turn.peakTokens || ((tok.in || 0) + (tok.cache || 0));
+  const ctxPct = turn.ctxWindow > 0 ? Math.round((peakCtx / turn.ctxWindow) * 100) : 0;
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Turn banner */}
@@ -79,8 +83,10 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
         </div>
 
         {/* Turn-level token stats row */}
-        <div className="flex items-center gap-4 mt-2 text-[9px]">
-          <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}><Zap size={10} className="text-cyan-500/60" /><span className="font-mono" style={{ color: "var(--text-primary)" }}>{fmt(total)}</span> tokens</span>
+        <div className="flex items-center gap-3 mt-2 text-[9px]">
+          <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}><span className="w-2 h-2 rounded-sm inline-block" style={{ background: "var(--accent-cyan)" }} />in:<span className="font-mono" style={{ color: "var(--text-primary)" }}>{fmt(tok.in||0)}</span></span>
+          <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}><span className="w-2 h-2 rounded-sm inline-block" style={{ background: "#6366f1" }} />cache:<span className="font-mono" style={{ color: "var(--text-primary)" }}>{fmt(tok.cache||0)}</span></span>
+          <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}><span className="w-2 h-2 rounded-sm inline-block" style={{ background: "var(--accent-green)" }} />out:<span className="font-mono" style={{ color: "var(--text-primary)" }}>{fmt(tok.out||0)}</span></span>
           <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}><Wrench size={10} className="text-purple-500/60" /><span className="font-mono" style={{ color: "var(--text-primary)" }}>{turn.tc || 0}</span> tools</span>
           {ctxPct > 0 && (
             <span className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
@@ -88,20 +94,6 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
               <span className="font-mono" style={{ color: ctxPct > 80 ? "var(--accent-red)" : ctxPct > 40 ? "var(--accent-amber)" : "var(--accent-green)" }}>{ctxPct}% ctx</span>
             </span>
           )}
-          <div className="flex items-center gap-1 ml-auto">
-            <div className="flex items-center gap-0.5 text-[8px]" style={{ color: "var(--text-dim)" }}>
-              <span className="w-2 h-2 rounded-sm inline-block" style={{ background: "var(--accent-cyan)" }} />
-              in:{fmt(tok.in||0)}
-            </div>
-            <div className="flex items-center gap-0.5 text-[8px]" style={{ color: "var(--text-dim)" }}>
-              <span className="w-2 h-2 rounded-sm inline-block" style={{ background: "var(--accent-purple)" }} />
-              reason:{fmt(tok.reason||0)}
-            </div>
-            <div className="flex items-center gap-0.5 text-[8px]" style={{ color: "var(--text-dim)" }}>
-              <span className="w-2 h-2 rounded-sm inline-block" style={{ background: "var(--accent-amber)" }} />
-              out:{fmt(tok.out||0)}
-            </div>
-          </div>
         </div>
 
         <TabBar activeView={activeView} setActiveView={setActiveView} />
@@ -148,8 +140,9 @@ export default function TurnDetail({ turn, planSteps, planProgress, turnTools, a
 /* ====== Overview View ====== */
 function OverviewView({ turn, turnTools, planSteps, planProgress, allToolCalls, turns, sessionMeta }) {
   const tok = turn.tokens || {};
-  const total = (tok.in || 0) + (tok.out || 0) + (tok.reason || 0);
-  const ctxPct = turn.ctxWindow > 0 ? Math.round((total / turn.ctxWindow) * 100) : 0;
+  const total = (tok.in || 0) + (tok.cache || 0) + (tok.out || 0) + (tok.reason || 0);
+  const peakCtx = turn.peakTokens || ((tok.in || 0) + (tok.cache || 0));
+  const ctxPct = turn.ctxWindow > 0 ? Math.round((peakCtx / turn.ctxWindow) * 100) : 0;
   const doneCount = turnTools.filter((t) => t && t.done).length;
   const errCount = turnTools.filter((t) => t && t.error).length;
 
@@ -163,12 +156,12 @@ function OverviewView({ turn, turnTools, planSteps, planProgress, allToolCalls, 
       <div className="grid grid-cols-2 gap-3">
         {/* Token Donut */}
         <Panel icon={<Zap size={12} className="text-cyan-400" />} title="Token Usage">
-          <TokenDonut tokens={tok} total={total} />
+          <TokenBars tokens={tok} total={total} />
         </Panel>
 
         {/* Context Pressure Gauge (NEW) */}
         <Panel icon={<Gauge size={12} className={ctxPct > 80 ? "text-red-400" : ctxPct > 50 ? "text-amber-400" : "text-emerald-400"} />} title="Context Pressure">
-          <ContextGauge pct={ctxPct} ctxWindow={turn.ctxWindow} used={total} />
+          <ContextGauge pct={ctxPct} ctxWindow={turn.ctxWindow} used={peakCtx} />
         </Panel>
 
         {/* Agent Health Card (NEW) */}
@@ -280,7 +273,7 @@ function StatusChip({ label, active, detail }: { label: any; active: any; detail
 
 /* ====== Plan Step List ====== */
 function PlanStepList({ steps, progress, turns }: { steps: any[]; progress?: { completed: number; total: number }; turns?: any[] }) {
-  const pct = progress && progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : steps && steps.length > 0 ? Math.round((steps.filter((s: any) => s.status === "completed").length / steps.length) * 100) : 0;
+  const pct = progress && progress?.total > 0 ? Math.round(((progress?.completed ?? 0) / progress?.total) * 100) : steps && steps.length > 0 ? Math.round((steps.filter((s: any) => s.status === "completed").length / steps.length) * 100) : 0;
   const hasActiveTurn = turns?.some((t: any) => !t.finishedAt);
   const hasInProgress = steps?.some((s: any) => s.status === "in_progress");
   const isAllDone = pct === 100 || (!hasActiveTurn && steps && steps.length > 0 && !hasInProgress);
@@ -296,7 +289,7 @@ function PlanStepList({ steps, progress, turns }: { steps: any[]; progress?: { c
   return (
     <div className="p-2 space-y-2">
       {/* Progress bar */}
-      {(progress?.total > 0 || steps?.length > 0) && (
+      {((progress?.total ?? 0) > 0 || (steps?.length ?? 0) > 0) && (
         <div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[8px] font-semibold uppercase tracking-wider" style={{
@@ -305,7 +298,7 @@ function PlanStepList({ steps, progress, turns }: { steps: any[]; progress?: { c
               {phase}
             </span>
             <span className="text-[8px] font-mono" style={{ color: "var(--text-muted)" }}>
-              {progress ? (progress.completed + "/" + progress.total) : (steps.filter((s: any) => s.status === "completed").length + "/" + steps.length)}
+              {progress ? (progress.completed + "/" + progress?.total) : (steps.filter((s: any) => s.status === "completed").length + "/" + steps.length)}
             </span>
           </div>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-hover)" }}>

@@ -12,7 +12,7 @@ export function useAgentScope() {
   const [planProgress, setPlanProgress] = useState<{ completed: number; total: number }>({ completed: 0, total: 0 });
   const [loading, setLoading] = useState<boolean>(false);
   const [allToolCalls, setAllToolCalls] = useState<ToolCall[]>([]);
-  const [stats, setStats] = useState<Stats>({ today: { tokens: 0, sessions: 0 }, month: { tokens: 0, sessions: 0 }, all: { tokens: 0, turns: 0, sessions: 0 }, anomalies: 0 });
+  const [stats, setStats] = useState<Stats>({ today: { tokens: 0, sessions: 0 }, month: { tokens: 0, sessions: 0 }, all: { tokens: 0, turns: 0, sessions: 0 }, anomalies: 0, efficiency: 0 });
   const [activeView, setActiveView] = useState<string>("overview");
   const [alerts, setAlerts] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);

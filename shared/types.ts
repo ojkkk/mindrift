@@ -15,6 +15,7 @@ export interface TokenUsage {
   in: number;
   out: number;
   reason: number;
+  cache?: number;
 }
 
 export interface TokenMetrics {
@@ -67,6 +68,7 @@ export interface Turn {
   tc: number; // tool call count
   tokens: TokenUsage;
   ctxWindow: number;
+  peakTokens?: number;
   userMsg: string;
   agentMessages: AgentMessage[];
   agentSummary: string;
@@ -121,6 +123,9 @@ export interface SessionInfo {
   lastModified?: string;
   turnCount: number;
   totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheTokens: number;
   toolCallCount: number;
   model: string;
   cwd: string;
@@ -134,8 +139,8 @@ export interface SessionInfo {
 
 // ---- Stats ----
 export interface Stats {
-  today: { tokens: number; sessions: number };
-  month: { tokens: number; sessions: number };
+  today: { tokens: number; sessions: number; cost?: number; inputTokens?: number; outputTokens?: number; cacheTokens?: number };
+  month: { tokens: number; sessions: number; cost?: number; inputTokens?: number; outputTokens?: number; cacheTokens?: number };
   all: { tokens: number; turns: number; sessions: number };
   anomalies: number;
   efficiency: number;
@@ -199,6 +204,7 @@ export interface ParsedSession {
     total_tokens: number;
   };
   ctxWindow: number;
+  peakTokens?: number;
   planProgress?: { completed: number; total: number };
   efficiencyScores?: EfficiencyScores;
   patterns?: SessionPatterns;

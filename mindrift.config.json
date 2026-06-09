@@ -4,10 +4,6 @@
     {
       "type": "codex",
       "path": ""
-    },
-    {
-      "type": "claude-code",
-      "path": ""
     }
   ],
   "theme": "dark",

@@ -82,8 +82,11 @@ function parseSession(raw: string): ParsedSession {
     ctxWindow: 0,
   };
   let tn = 0;
+  let lastCumulativeInput = 0;
   const seenTurnIds = new Set<string>();
   let lastCompactedMsg: string | null = null;
+  // Cumulative token snapshots at each turn boundary (for per-turn delta)
+  const turnSnapshots: { in: number; cache: number; out: number; reason: number }[] = [{ in: 0, cache: 0, out: 0, reason: 0 }];
   const lines = raw.split("\n");
 
   for (const line of lines) {
@@ -135,15 +138,25 @@ function parseSession(raw: string): ParsedSession {
       R.turns.push({
         id: tid, n: tn, model: payload.model || R.meta?.model || "?",
         startedAt: timestamp, finishedAt: null, tc: 0,
-        tokens: { in: 0, out: 0, reason: 0 },
+        tokens: { in: 0, cache: 0, out: 0, reason: 0 },
         ctxWindow: 0, userMsg: "", agentMessages: [], agentSummary: "",
         reasoning: "", duration: null, compacted: false, compactRestarts: 0, model: payload.model || "",
         compactSummary: lastCompactedMsg || "", goalObjective: "",
         aborted: false, abortReason: "", taskDone: false,
         planSteps: [],
         wastedTokens: 0, wasteReasons: [],
+        peakTokens: 0,
       });
       lastCompactedMsg = null;
+      // Snapshot cumulative tokens at this turn boundary
+      turnSnapshots.push({
+        in: R.tokenTotal.input_tokens || 0,
+        cache: R.tokenTotal.cached_input_tokens || 0,
+        out: R.tokenTotal.output_tokens || 0,
+        reason: R.tokenTotal.reasoning_output_tokens || 0
+      });
+      // Reset per-call peak baseline at start of new turn
+      lastCumulativeInput = (R.tokenTotal.input_tokens || 0) + (R.tokenTotal.cached_input_tokens || 0);
     }
     // event_msg
     else if (type === "event_msg") {
@@ -178,13 +191,6 @@ function parseSession(raw: string): ParsedSession {
         cur.abortReason = payload.reason || "interrupted";
         cur.finishedAt = timestamp;
       } else if (pt === "token_count") {
-        // Accumulate last_token_usage (per-step delta) for per-turn tokens
-        const lu = payload.info?.last_token_usage || payload.last_token_usage;
-        if (lu) {
-          cur.tokens.in += (lu.input_tokens || 0);
-          cur.tokens.out += (lu.output_tokens || 0);
-          cur.tokens.reason += (lu.reasoning_output_tokens || 0);
-        }
         // Context window
         const cw = payload.info?.model_context_window || payload.model_context_window;
         if (cw) {
@@ -199,6 +205,19 @@ function parseSession(raw: string): ParsedSession {
           R.tokenTotal.output_tokens = tu.output_tokens || 0;
           R.tokenTotal.reasoning_output_tokens = tu.reasoning_output_tokens || 0;
           R.tokenTotal.total_tokens = tu.total_tokens || 0;
+          // Track per-call peak: max single-call context usage within this turn
+          
+const currentInput = (tu.input_tokens || 0) + (tu.cached_input_tokens || 0);
+          
+const delta = currentInput - lastCumulativeInput;
+          
+if (delta > 0 && delta > (cur.peakTokens || 0)) {
+          
+  cur.peakTokens = delta;
+          
+}
+          
+lastCumulativeInput = currentInput;
         }
       } else if (pt === "wasted_tokens") {
         cur.wastedTokens += payload.amount || 0;
@@ -294,7 +313,7 @@ function parseSession(raw: string): ParsedSession {
   // Calculate wasted tokens: aborted + compacted turns
   for (const t of R.turns) {
     if (t.aborted || t.compacted) {
-      const tt = (t.tokens.in || 0) + (t.tokens.out || 0) + (t.tokens.reason || 0);
+      const tt = (t.tokens.in || 0) + (t.tokens.cache || 0) + (t.tokens.out || 0) + (t.tokens.reason || 0);
       t.wastedTokens = tt;
       if (t.aborted) t.wasteReasons.push("turn aborted");
       if (t.compacted) t.wasteReasons.push("context compacted (" + (t.compactRestarts || 1) + "x)");
@@ -315,7 +334,28 @@ function parseSession(raw: string): ParsedSession {
     completed: R.planSteps.filter((s: any) => s.status === "completed").length,
     total: R.planSteps.length
   };
-  // Mark last turn finished ONLY for stale/inactive sessions (file not modified in 60s)
+  // Add final snapshot (captures cumulative tokens after all turns)
+  turnSnapshots.push({
+    in: R.tokenTotal.input_tokens || 0,
+    cache: R.tokenTotal.cached_input_tokens || 0,
+    out: R.tokenTotal.output_tokens || 0,
+    reason: R.tokenTotal.reasoning_output_tokens || 0
+  });
+  // Compute per-turn tokens from cumulative snapshots (exact match with session total)
+  // snapshots[0]=initial, snapshots[1]=turn1 start, snapshots[2]=turn2 start, ..., snapshots[N+1]=final
+  // turn i tokens = snapshots[i+2] - snapshots[i+1]
+  for (let i = 0; i < R.turns.length; i++) {
+    const snap = turnSnapshots[i + 2];
+    if (snap) {
+      const prev = turnSnapshots[i + 1];
+      R.turns[i].tokens.in = snap.in - prev.in;
+      R.turns[i].tokens.cache = snap.cache - prev.cache;
+      R.turns[i].tokens.out = snap.out - prev.out;
+      R.turns[i].tokens.reason = snap.reason - prev.reason;
+    }
+  }
+
+    // Mark last turn finished ONLY for stale/inactive sessions (file not modified in 60s)
   // Mark last turn as done if AI has finished responding
   const last = R.turns[tn - 1];
   if (last && !last.finishedAt && last.agentMessages.length > 0) {
@@ -351,12 +391,13 @@ function parseSession(raw: string): ParsedSession {
   }
   // Calculate per-turn efficiency scores
   for (const t of R.turns) {
-    const total = (t.tokens.in || 0) + (t.tokens.out || 0) + (t.tokens.reason || 0);
+    const total = (t.tokens.in || 0) + (t.tokens.cache || 0) + (t.tokens.out || 0) + (t.tokens.reason || 0);
     const ctxWindow = t.ctxWindow || R.ctxWindow || 128000;
     const doneTools = R.toolCalls.filter((tc: ToolCall) => tc.turnN === t.n && tc.done).length;
     const allTools = R.toolCalls.filter((tc: ToolCall) => tc.turnN === t.n).length;
     const toolSuccess = allTools > 0 ? Math.round((doneTools / allTools) * 100) : 100;
-    const contextUtil = ctxWindow > 0 ? Math.min(100, Math.round((total / ctxWindow) * 100)) : 0;
+    const peakCtx = t.peakTokens || ((t.tokens.in || 0) + (t.tokens.cache || 0));
+    const contextUtil = ctxWindow > 0 ? Math.min(100, Math.round((peakCtx / ctxWindow) * 100)) : 0;
     const wasteRatio = total > 0 ? Math.round(((t.wastedTokens || 0) / total) * 100) : 0;
     const tokenROI = total > 0 ? Math.min(100, Math.round((doneTools / Math.max(1, total / 1000)) * 50)) : 50;
     const overall = Math.round(toolSuccess * 0.4 + (100 - wasteRatio) * 0.3 + Math.min(100, contextUtil * 0.8) * 0.2 + tokenROI * 0.1);
@@ -405,6 +446,9 @@ function scanAllSessions(): SessionInfo[] {
         let turnCount = 0;
         let toolCallCount = 0;
         let totalTokens = 0;
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let cacheTokens = 0;
         let doneToolCount = 0;
         let abortedTurnCount = 0;
         let compactedTurnCount = 0;
@@ -422,7 +466,11 @@ function scanAllSessions(): SessionInfo[] {
             if (!seenTurns.has(payload.turn_id)) { seenTurns.add(payload.turn_id); turnCount++; }
           }
           if (type === "event_msg" && payload.type === "token_count" && (payload.info?.total_token_usage || payload.total_token_usage)) {
-            const t = (payload.info?.total_token_usage || payload.total_token_usage).total_tokens || 0; if (t > totalTokens) totalTokens = t;
+            const tu = payload.info?.total_token_usage || payload.total_token_usage;
+            const t = tu.total_tokens || 0; if (t > totalTokens) totalTokens = t;
+            const inp = tu.input_tokens || 0; if (inp > inputTokens) inputTokens = inp;
+            const out = tu.output_tokens || 0; if (out > outputTokens) outputTokens = out;
+            const cache = tu.cached_input_tokens || 0; if (cache > cacheTokens) cacheTokens = cache;
           }
           if (type === "response_item" && payload.type === "function_call") { toolCallCount++; }
           if (type === "response_item" && payload.type === "function_call_output" && !payload.error) { doneToolCount++; }
@@ -457,6 +505,9 @@ function scanAllSessions(): SessionInfo[] {
           lastModified: stat.mtime.toISOString(),
           turnCount,
           totalTokens,
+          inputTokens,
+          outputTokens,
+          cacheTokens,
           toolCallCount,
           model: modelDetected || meta?.model_provider || "custom",
           cwd: meta?.cwd || "",
@@ -521,38 +572,58 @@ function scanAllSessions(): SessionInfo[] {
 }
 
 // ====== Model Pricing (USD per 1M tokens, approximate 2026) ======
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "gpt-5.5": { input: 1.25, output: 10 },
-  "gpt-5.4": { input: 1.25, output: 10 },
-  "gpt-5.4-mini": { input: 0.15, output: 0.60 },
-  "gpt-5.3-codex": { input: 0.50, output: 2.00 },
-  "gpt-5.1": { input: 2.50, output: 10 },
-  "gpt-5": { input: 1.25, output: 10 },
-  "gpt-4o": { input: 2.50, output: 10 },
-  "gpt-4o-mini": { input: 0.15, output: 0.60 },
-  "deepseek-v4-pro": { input: 0.55, output: 2.19 },
-  "deepseek-v4-flash": { input: 0.14, output: 0.55 },
-  "deepseek": { input: 0.55, output: 2.19 },
-  "claude-sonnet-4-20250514": { input: 3, output: 15 },
-  "claude-opus-4-20250514": { input: 15, output: 75 },
-  "claude-3.5-sonnet": { input: 3, output: 15 },
-  "claude-3.5-haiku": { input: 0.80, output: 4 },
-  "claude": { input: 3, output: 15 },
-  "custom": { input: 0.50, output: 2 },
+// ====== Model Pricing (USD per 1M tokens) ======
+const MODEL_PRICING: Record<string, { input: number; output: number; cacheRead: number }> = {
+  // Chinese models
+  "glm-5.1":      { input: 1.40, output: 4.40, cacheRead: 0.26 },
+  "glm-5":        { input: 1.00, output: 3.20, cacheRead: 0.20 },
+  "glm":          { input: 1.00, output: 3.20, cacheRead: 0.20 },
+  "kimi-k2.6":    { input: 0.95, output: 4.00, cacheRead: 0.16 },
+  "kimi-k2.5":    { input: 0.60, output: 3.00, cacheRead: 0.10 },
+  "kimi":         { input: 0.95, output: 4.00, cacheRead: 0.16 },
+  "mimo-v2.5":    { input: 0.14, output: 0.28, cacheRead: 0.0028 },
+  "mimo-v2.5-pro":{ input: 1.74, output: 3.48, cacheRead: 0.0145 },
+  "mimo":         { input: 1.74, output: 3.48, cacheRead: 0.0145 },
+  "minimax-m3":   { input: 0.30, output: 1.20, cacheRead: 0.06 },
+  "minimax-m2.7": { input: 0.30, output: 1.20, cacheRead: 0.06 },
+  "minimax-m2.5": { input: 0.30, output: 1.20, cacheRead: 0.06 },
+  "minimax":      { input: 0.30, output: 1.20, cacheRead: 0.06 },
+  "qwen3.7-max":  { input: 2.50, output: 7.50, cacheRead: 0.50 },
+  "qwen3.7-plus": { input: 0.40, output: 1.60, cacheRead: 0.04 },
+  "qwen3.6-plus": { input: 0.50, output: 3.00, cacheRead: 0.05 },
+  "qwen":         { input: 0.40, output: 1.60, cacheRead: 0.04 },
+  "deepseek-v4-pro":  { input: 1.74, output: 3.48, cacheRead: 0.0145 },
+  "deepseek-v4-flash":{ input: 0.14, output: 0.28, cacheRead: 0.0028 },
+  "deepseek":     { input: 1.74, output: 3.48, cacheRead: 0.0145 },
+  // OpenAI models
+  "gpt-5.5":      { input: 1.25, output: 10.00, cacheRead: 0.625 },
+  "gpt-5.4":      { input: 1.25, output: 10.00, cacheRead: 0.625 },
+  "gpt-5.4-mini": { input: 0.15, output: 0.60, cacheRead: 0.075 },
+  "gpt-5.3-codex":{ input: 0.50, output: 2.00, cacheRead: 0.25 },
+  "gpt-5.1":      { input: 2.50, output: 10.00, cacheRead: 1.25 },
+  "gpt-5":        { input: 1.25, output: 10.00, cacheRead: 0.625 },
+  "gpt-4o":       { input: 2.50, output: 10.00, cacheRead: 1.25 },
+  "gpt-4o-mini":  { input: 0.15, output: 0.60, cacheRead: 0.075 },
+  // Anthropic models
+  "claude-sonnet-4-20250514": { input: 3.00, output: 15.00, cacheRead: 0.30 },
+  "claude-opus-4-20250514":  { input: 15.00, output: 75.00, cacheRead: 1.50 },
+  "claude-3.5-sonnet":       { input: 3.00, output: 15.00, cacheRead: 0.30 },
+  "claude-3.5-haiku":        { input: 0.80, output: 4.00, cacheRead: 0.08 },
+  "claude":       { input: 3.00, output: 15.00, cacheRead: 0.30 },
+  // Default
+  "custom":       { input: 0.50, output: 2.00, cacheRead: 0.05 },
 };
 
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+function estimateCost(model: string, inputTokens: number, outputTokens: number, cacheTokens: number = 0): number {
   const cfgModel = appConfig.costModel || "custom";
   const lookupModel = cfgModel !== "custom" ? cfgModel : model;
   const pricing = MODEL_PRICING[lookupModel] || MODEL_PRICING[model] || MODEL_PRICING["custom"];
-  return (inputTokens / 1e6) * pricing.input + (outputTokens / 1e6) * pricing.output;
+  return (inputTokens / 1e6) * pricing.input + (outputTokens / 1e6) * pricing.output + (cacheTokens / 1e6) * pricing.cacheRead;
 }
 
 function formatCost(cost: number): string {
   if (cost < 0.01) return "<$0.01";
-  if (cost < 1) return "$" + cost.toFixed(2);
-  if (cost < 10) return "$" + cost.toFixed(2);
-  return "$" + Math.round(cost).toString();
+  return "$" + cost.toFixed(2);
 }
 
 function computeStats(sessions: SessionInfo[]): Stats {
@@ -561,6 +632,9 @@ function computeStats(sessions: SessionInfo[]): Stats {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
   let todayTokens = 0, todaySessions = 0, monthTokens = 0, monthSessions = 0;
+  let todayCost = 0, monthCost = 0;
+  let todayIn = 0, todayOut = 0, todayCache = 0;
+  let monthIn = 0, monthOut = 0, monthCache = 0;
   let totalAllTokens = 0, totalAllTurns = 0, totalAllTools = 0, totalWasted = 0;
   let totalDoneTools = 0;
 
@@ -574,6 +648,28 @@ function computeStats(sessions: SessionInfo[]): Stats {
     totalDoneTools += Math.round((s.toolCallCount || 0) * (s.toolSuccessRate || 100) / 100);
     if (mod >= todayStart) { todayTokens += s.totalTokens; todaySessions++; }
     if (ts >= monthStart) { monthTokens += s.totalTokens; monthSessions++; }
+
+    // Per-turn cost: parse session, only count turns from today/month
+    if (mod >= todayStart || ts >= monthStart) {
+      try {
+        const raw = fs.readFileSync(s.filePath, "utf-8");
+        const parsed = parseSession(raw);
+        for (const t of parsed.turns) {
+          const tDate = new Date(t.startedAt).getTime();
+          const tIn = t.tokens.in || 0;
+          const tOut = t.tokens.out || 0;
+          const tCache = t.tokens.cache || 0;
+          if (tDate >= todayStart) {
+            todayCost += estimateCost(s.model, tIn, tOut, tCache);
+            todayIn += tIn; todayOut += tOut; todayCache += tCache;
+          }
+          if (tDate >= monthStart) {
+            monthCost += estimateCost(s.model, tIn, tOut, tCache);
+            monthIn += tIn; monthOut += tOut; monthCache += tCache;
+          }
+        }
+      } catch { /* skip parse errors */ }
+    }
   }
 
   const avgTpt = totalAllTurns > 0 ? Math.round(totalAllTokens / totalAllTurns / 1000) : 0;
@@ -603,8 +699,8 @@ function computeStats(sessions: SessionInfo[]): Stats {
   }
 
   return {
-    today: { tokens: todayTokens, sessions: todaySessions },
-    month: { tokens: monthTokens, sessions: monthSessions },
+    today: { tokens: todayTokens, sessions: todaySessions, cost: todayCost, inputTokens: todayIn, outputTokens: todayOut, cacheTokens: todayCache },
+    month: { tokens: monthTokens, sessions: monthSessions, cost: monthCost, inputTokens: monthIn, outputTokens: monthOut, cacheTokens: monthCache },
     all: { tokens: totalAllTokens, turns: totalAllTurns, sessions: sessions.length },
     anomalies: sessions.filter((s: SessionInfo) => s.anomalies && s.anomalies.length > 0).length,
     efficiency: avgTpt,
@@ -613,8 +709,9 @@ function computeStats(sessions: SessionInfo[]): Stats {
     patternInsights: { totalWasted: totalWasted, avgToolSuccess: toolSuccessRate, topTool: "" },
     estimatedCost: estimateCost(
       sessions[0]?.model || "custom",
-      totalAllTokens * 0.7,
-      totalAllTokens * 0.3
+      sessions.reduce((a: number, s: SessionInfo) => a + (s.inputTokens || 0), 0),
+      sessions.reduce((a: number, s: SessionInfo) => a + (s.outputTokens || 0), 0),
+      sessions.reduce((a: number, s: SessionInfo) => a + (s.cacheTokens || 0), 0)
     ),
   };
 }
@@ -641,7 +738,7 @@ function checkAlerts(sessions: SessionInfo[]): string[] {
   // Check active turn token limit
   const lastTurn = turns[turns.length - 1];
   if (lastTurn && ac.singleTurnTokenLimit) {
-    const tt = (lastTurn.tokens.in || 0) + (lastTurn.tokens.out || 0) + (lastTurn.tokens.reason || 0);
+    const tt = (lastTurn.tokens.in || 0) + (lastTurn.tokens.cache || 0) + (lastTurn.tokens.out || 0) + (lastTurn.tokens.reason || 0);
     if (tt > ac.singleTurnTokenLimit) {
       alerts.push("Turn #" + lastTurn.n + " tokens: " + Math.round(tt / 1000) + "K (limit: " + Math.round(ac.singleTurnTokenLimit / 1000) + "K)");
     }
